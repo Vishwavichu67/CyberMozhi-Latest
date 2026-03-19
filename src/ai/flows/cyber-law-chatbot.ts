@@ -59,18 +59,18 @@ const cyberLawChatbotFlow = ai.defineFlow(
   },
   async (input: CyberLawChatbotInput): Promise<CyberLawChatbotOutput> => {
     try {
-      // Step 1: Render the prompt to get the messages/parts
-      const rendered = await prompt.render({ input });
+      // Step 1: Render the prompt to get the messages
+      // Passing input directly as it matches the schema
+      const rendered = await prompt.render(input);
 
-      // Step 2: Use ai.generate with explicit model and tools to allow multi-step reasoning
+      // Step 2: Use ai.generate with explicit parameters
       const result = await ai.generate({
         model: 'googleai/gemini-1.5-flash',
         prompt: rendered.messages,
         tools: [legalDocumentGeneratorTool],
         config: {
           temperature: 0.7,
-        },
-        maxSteps: 5, // Allows automatic tool execution loop
+        }
       });
       
       const rawText = result.text;

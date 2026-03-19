@@ -37,7 +37,6 @@ export const legalDocumentGeneratorTool = ai.defineTool(
     outputSchema: LegalDocumentOutputSchema,
   },
   async (input) => {
-    // Calling the prompt as a function for simple single-turn tool logic
     const { text } = await documentGeneratorPrompt(input);
     const cleanedText = cleanJson(text);
     try {
