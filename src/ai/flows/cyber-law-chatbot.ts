@@ -21,10 +21,6 @@ const prompt = ai.definePrompt({
   name: 'cyberLawChatbotPrompt',
   input: { schema: CyberLawChatbotInputSchema },
   model: 'googleai/gemini-1.5-flash',
-  tools: [legalDocumentGeneratorTool],
-  config: {
-    temperature: 0.7,
-  },
   prompt: `You are CyberMozhi, an expert AI assistant specializing in Indian Cyber Law (IT Act 2000, IPC, and DPDP Act 2023).
 
 Role: Provide layman-friendly legal guidance and cybersecurity mitigation steps.
@@ -63,12 +59,18 @@ const cyberLawChatbotFlow = ai.defineFlow(
   },
   async (input: CyberLawChatbotInput): Promise<CyberLawChatbotOutput> => {
     try {
-      // Using ai.generate with the prompt name and maxSteps ensures type-safety
-      // and automatic tool execution for multi-turn reasoning.
+      // Step 1: Render the prompt to get the messages/parts
+      const rendered = await prompt.render({ input });
+
+      // Step 2: Use ai.generate with explicit model and tools to allow multi-step reasoning
       const result = await ai.generate({
-        prompt: 'cyberLawChatbotPrompt',
-        input: input,
-        maxSteps: 5
+        model: 'googleai/gemini-1.5-flash',
+        prompt: rendered.messages,
+        tools: [legalDocumentGeneratorTool],
+        config: {
+          temperature: 0.7,
+        },
+        maxSteps: 5, // Allows automatic tool execution loop
       });
       
       const rawText = result.text;
