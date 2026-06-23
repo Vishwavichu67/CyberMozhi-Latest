@@ -1,37 +1,29 @@
 'use server';
+
 /**
- * @fileOverview Summarizes a cyber attack and provides relevant laws.
+ * @fileOverview Summarizes a cyber attack and lists applicable Indian laws.
+ * Uses Groq LLaMA 3.3 — no Google AI dependency.
  */
 
-import {ai, cleanJson} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai, cleanJson, callGroq } from '@/ai/genkit';
+import { z } from 'genkit';
 
 const CyberAttackInputSchema = z.object({
-  description: z.string().describe('The description of the cyber attack.'),
+  description: z.string().describe('Description of the cyber attack.'),
 });
 export type CyberAttackInput = z.infer<typeof CyberAttackInputSchema>;
 
 const CyberAttackOutputSchema = z.object({
-  summary: z.string().describe('A summary of the cyber attack.'),
-  relevantLaws: z.string().describe('The relevant Indian cyber laws applicable to the attack.'),
+  summary: z.string(),
+  relevantLaws: z.string(),
 });
 export type CyberAttackOutput = z.infer<typeof CyberAttackOutputSchema>;
 
-export async function summarizeCyberAttack(input: CyberAttackInput): Promise<CyberAttackOutput> {
+export async function summarizeCyberAttack(
+  input: CyberAttackInput
+): Promise<CyberAttackOutput> {
   return summarizeCyberAttackFlow(input);
 }
-
-const prompt = ai.definePrompt({
-  name: 'cyberAttackSummaryPrompt',
-  input: {schema: CyberAttackInputSchema},
-  model: 'googleai/gemini-1.5-flash',
-  prompt: `You are an expert in Indian Cyber Law. Given a description of a cyber attack, provide a summary of the attack and identify the relevant Indian cyber laws (IT Act 2000, IPC, etc.) that apply.
-
-Description: {{{description}}}
-
-Respond ONLY with a valid JSON object with two keys: "summary" and "relevantLaws". Do not include Markdown formatting.
-`,
-});
 
 const summarizeCyberAttackFlow = ai.defineFlow(
   {
@@ -40,19 +32,27 @@ const summarizeCyberAttackFlow = ai.defineFlow(
     outputSchema: CyberAttackOutputSchema,
   },
   async input => {
-    const { text } = await prompt(input);
-    const cleanedText = cleanJson(text);
     try {
-      const output = JSON.parse(cleanedText);
+      const prompt = `You are an expert in Indian Cyber Law. Given this cyber attack description, provide:
+1. A clear summary in simple language.
+2. Specific applicable Indian laws with section numbers (IT Act 2000, IPC, DPDP Act 2023, etc.)
+
+Description: ${input.description}
+
+Respond ONLY with a valid JSON object with exactly two keys: "summary" and "relevantLaws". No markdown code fences.
+Example: { "summary": "...", "relevantLaws": "Section 66C of IT Act 2000..." }`;
+
+      const rawText = await callGroq(prompt);
+      const output = JSON.parse(cleanJson(rawText));
       return {
-        summary: output.summary || "Summary generation failed.",
-        relevantLaws: output.relevantLaws || "No laws identified."
+        summary: output.summary || 'Summary not available.',
+        relevantLaws: output.relevantLaws || 'No specific laws identified.',
       };
-    } catch(e) {
-      console.error("Failed to parse cyber attack summary JSON:", e, "Raw:", text);
+    } catch (e) {
+      console.error('Cyber attack summarizer error:', e);
       return {
-        summary: "Could not generate a summary due to a formatting error.",
-        relevantLaws: "No laws could be identified."
+        summary: 'Could not generate a summary. Please try again.',
+        relevantLaws: 'Could not identify applicable laws. Please try again.',
       };
     }
   }

@@ -1,38 +1,28 @@
 'use server';
 
 /**
- * @fileOverview A Genkit flow to generate a concise title for a new chat session.
+ * @fileOverview Generates a short chat session title using Groq LLaMA 3.3.
+ * No Google AI dependency.
  */
 
-import { ai, cleanJson } from '@/ai/genkit';
+import { ai, cleanJson, callGroq } from '@/ai/genkit';
 import { z } from 'genkit';
 
 const ChatTitleInputSchema = z.object({
-  query: z.string().describe('The first message from the user in a new chat session.'),
+  query: z.string().describe('The first user message in a new chat session.'),
 });
 export type ChatTitleInput = z.infer<typeof ChatTitleInputSchema>;
 
 const ChatTitleOutputSchema = z.object({
-  title: z.string().describe('A short, relevant title for the chat session, no more than 5 words.'),
+  title: z.string().describe('A short title, max 5 words.'),
 });
 export type ChatTitleOutput = z.infer<typeof ChatTitleOutputSchema>;
 
-export async function generateChatTitle(input: ChatTitleInput): Promise<ChatTitleOutput> {
+export async function generateChatTitle(
+  input: ChatTitleInput
+): Promise<ChatTitleOutput> {
   return generateChatTitleFlow(input);
 }
-
-const prompt = ai.definePrompt({
-  name: 'chatTitlePrompt',
-  input: { schema: ChatTitleInputSchema },
-  model: 'googleai/gemini-1.5-flash',
-  prompt: `Based on the following user query, generate a short, relevant title for the chat session. The title should be a maximum of 5 words.
-
-User Query: {{{query}}}
-
-Respond ONLY with a valid JSON object containing a single key "title". Do not include Markdown code blocks.
-Example: { "title": "Identity Theft Help" }
-`,
-});
 
 const generateChatTitleFlow = ai.defineFlow(
   {
@@ -40,17 +30,21 @@ const generateChatTitleFlow = ai.defineFlow(
     inputSchema: ChatTitleInputSchema,
     outputSchema: ChatTitleOutputSchema,
   },
-  async (input) => {
-    const { text } = await prompt(input);
-    const cleanedText = cleanJson(text);
-
+  async input => {
     try {
-      const output = JSON.parse(cleanedText);
+      const prompt = `Based on this user query about Indian cyber law or cybersecurity, generate a short chat session title. Maximum 5 words. Simple English only.
+
+User Query: ${input.query}
+
+Respond ONLY with a valid JSON object: { "title": "..." }. No markdown code fences.
+Example: { "title": "Identity Theft Help" }`;
+
+      const rawText = await callGroq(prompt);
+      const output = JSON.parse(cleanJson(rawText));
       return { title: output.title || input.query.substring(0, 30) };
     } catch (e) {
-      console.error("Failed to parse chat title JSON:", e, "Raw:", text);
-      const fallbackTitle = input.query.substring(0, 40) + (input.query.length > 40 ? '...' : '');
-      return { title: fallbackTitle };
+      console.error('Chat title error:', e);
+      return { title: input.query.substring(0, 40) };
     }
   }
 );

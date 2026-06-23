@@ -1,53 +1,46 @@
 'use server';
 
 /**
- * @fileOverview Genkit tool for generating legal document drafts.
+ * @fileOverview Generates legal document drafts using Groq LLaMA 3.3.
+ * No Google AI dependency.
  */
 
-import {ai, cleanJson} from '@/ai/genkit';
+import { ai, cleanJson, callGroq } from '@/ai/genkit';
 import { LegalDocumentInputSchema, LegalDocumentOutputSchema } from './types';
-
-const documentGeneratorPrompt = ai.definePrompt({
-  name: 'legalDocumentGeneratorPrompt',
-  input: {schema: LegalDocumentInputSchema},
-  model: 'googleai/gemini-1.5-flash',
-  prompt: `You are an AI assistant specialized in drafting initial legal documents related to Indian Cyber Law.
-
-Document Type: {{{documentType}}}
-Incident Details: {{{incidentDetails}}}
-User Name: {{{userName}}}
-User Contact: {{{userContact}}}
-Accused Details: {{{accusedDetails}}}
-
-Instructions:
-1. Use professional Markdown formatting.
-2. Include placeholders for missing info like [DATE].
-3. Incorporate specific sections of the IT Act where applicable.
-4. You MUST respond with a valid JSON object with a single key "generatedDocument". Do not include Markdown code blocks.
-
-Example: { "generatedDocument": "## FIR Draft\\nTo, The Officer..." }
-`,
-});
 
 export const legalDocumentGeneratorTool = ai.defineTool(
   {
     name: 'legalDocumentGeneratorTool',
-    description: "Generates legal document drafts (FIR, Complaint Letter, Takedown Notice) based on incident details.",
+    description:
+      "Generates legal document drafts (FIR, Complaint Letter, Takedown Notice) based on the user's incident details.",
     inputSchema: LegalDocumentInputSchema,
     outputSchema: LegalDocumentOutputSchema,
   },
-  async (input) => {
-    const { text } = await documentGeneratorPrompt(input);
-    const cleanedText = cleanJson(text);
+  async input => {
     try {
-      const output = JSON.parse(cleanedText);
-      return {
-        generatedDocument: output.generatedDocument || text
-      };
+      const prompt = `Generate a ${input.documentType} legal document draft for an Indian cyber crime case.
+
+Document Type: ${input.documentType}
+Incident Details: ${input.incidentDetails}
+User Name: ${input.userName || '[Your Name]'}
+User Contact: ${input.userContact || '[Your Contact]'}
+Accused Details: ${input.accusedDetails || 'Unknown'}
+
+Instructions:
+1. Use professional Markdown formatting with clear sections.
+2. Include placeholders like [DATE], [POLICE STATION NAME], [JURISDICTION] for missing info.
+3. Incorporate specific sections of the IT Act 2000 or IPC where applicable.
+4. Add this disclaimer at the top: "DRAFT ONLY — Review with a qualified lawyer before submitting."
+5. Respond ONLY with a valid JSON object: { "generatedDocument": "..." }. No markdown code fences.`;
+
+      const rawText = await callGroq(prompt);
+      const output = JSON.parse(cleanJson(rawText));
+      return { generatedDocument: output.generatedDocument || rawText };
     } catch (e) {
-      console.error("Document Tool Parse Error:", e, "Raw:", text);
+      console.error('Document Tool Error:', e);
       return {
-        generatedDocument: text || "Failed to generate document."
+        generatedDocument:
+          '> **Error:** Could not generate document. Please describe your incident again.',
       };
     }
   }
