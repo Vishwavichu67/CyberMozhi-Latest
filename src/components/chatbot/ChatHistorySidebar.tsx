@@ -1,28 +1,26 @@
-
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, MessageSquareText, Loader2, AlertCircle, Trash2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import {
+  PlusCircle, MessageSquareText, AlertCircle,
+  Trash2, Pencil, Pin, PinOff, MoreVertical, Check, X
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, onSnapshot, type Timestamp, doc, deleteDoc } from 'firebase/firestore';
+import {
+  collection, query, orderBy, onSnapshot,
+  type Timestamp, doc, deleteDoc, updateDoc
+} from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ScrollArea } from '@/components/ui/scroll-area';
-
 
 interface ChatSession {
   id: string;
@@ -30,6 +28,7 @@ interface ChatSession {
   createdAt: Timestamp;
   lastMessageAt: Timestamp;
   userId: string;
+  pinned?: boolean;
 }
 
 interface ChatHistorySidebarProps {
@@ -39,179 +38,284 @@ interface ChatHistorySidebarProps {
 }
 
 export function ChatHistorySidebar({
-  currentChatSessionId,
-  onSelectChatSession,
-  onNewChat,
+  currentChatSessionId, onSelectChatSession, onNewChat,
 }: ChatHistorySidebarProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const [deletingSession, setDeletingSession] = useState<ChatSession | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) {
-      setSessions([]);
-      setIsLoading(false);
-      return;
-    }
-    
+    if (!user) { setSessions([]); setIsLoading(false); return; }
     setIsLoading(true);
-    setError(null);
-
-    const sessionsRef = collection(db, `users/${user.uid}/chatSessions`);
-    const q = query(sessionsRef, orderBy('lastMessageAt', 'desc'));
-
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const fetchedSessions: ChatSession[] = [];
-      querySnapshot.forEach((docSnap) => {
-        fetchedSessions.push({
-          id: docSnap.id,
-          ...docSnap.data()
-        } as ChatSession);
-      });
-      setSessions(fetchedSessions);
-      setIsLoading(false);
-    }, (err) => {
-      console.error("Error fetching chat sessions:", err);
-      let errorMessage = "Failed to fetch chat sessions.";
-      if (err.code === 'permission-denied') {
-        errorMessage = "Permission Denied: Could not read chat history. Please check your Firestore security rules.";
+    const q = query(
+      collection(db, `users/${user.uid}/chatSessions`),
+      orderBy('lastMessageAt', 'desc')
+    );
+    const unsub = onSnapshot(q,
+      snap => {
+        setSessions(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatSession)));
+        setIsLoading(false);
+      },
+      err => {
+        setError(err.code === 'permission-denied' ? 'Permission denied.' : 'Failed to load chats.');
+        setIsLoading(false);
       }
-      setError(errorMessage);
-      setIsLoading(false);
-    });
-
-    // Cleanup subscription on component unmount
-    return () => unsubscribe();
+    );
+    return () => unsub();
   }, [user]);
 
-  const handleDeleteSession = async (sessionId: string) => {
+  useEffect(() => {
+    if (renamingId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [renamingId]);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!openMenuId) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-menu]')) setOpenMenuId(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [openMenuId]);
+
+  const handleDelete = async (session: ChatSession) => {
     if (!user) return;
     try {
-      // It's not possible to delete a subcollection directly from the client.
-      // A cloud function is the recommended way. For client-side, we delete the session doc.
-      // The messages will become orphaned but inaccessible from the app.
-      await deleteDoc(doc(db, `users/${user.uid}/chatSessions`, sessionId));
-      
-      toast({
-        title: "Chat Deleted",
-        description: "The chat session has been removed.",
-      });
-
-      // If the deleted chat was the active one, start a new chat.
-      if (currentChatSessionId === sessionId) {
-        onNewChat();
-      }
-
-    } catch (err: any) {
-       console.error("Error deleting chat session:", err);
-       let errorMessage = "Could not delete chat session.";
-       if (err.code === 'permission-denied') {
-          errorMessage = "Permission Denied: Could not delete this chat. Please check your Firestore security rules.";
-       }
-       toast({
-         variant: 'destructive',
-         title: 'Error',
-         description: errorMessage,
-       });
+      await deleteDoc(doc(db, `users/${user.uid}/chatSessions`, session.id));
+      toast({ title: 'Deleted', description: `"${session.title}" removed.` });
+      if (currentChatSessionId === session.id) onNewChat();
+    } catch {
+      toast({ variant: 'destructive', title: 'Delete failed' });
+    } finally {
+      setDeletingSession(null);
     }
   };
 
-  const renderHistoryList = () => {
-    if (isLoading) {
+  const handleRenameCommit = async (sessionId: string) => {
+    const trimmed = renameValue.trim();
+    setRenamingId(null);
+    if (!trimmed || !user) return;
+    const original = sessions.find(s => s.id === sessionId)?.title;
+    if (trimmed === original) return;
+    try {
+      await updateDoc(doc(db, `users/${user.uid}/chatSessions`, sessionId), { title: trimmed });
+      toast({ title: 'Renamed', description: `Renamed to "${trimmed}".` });
+    } catch {
+      toast({ variant: 'destructive', title: 'Rename failed' });
+    }
+  };
+
+  const handleTogglePin = async (session: ChatSession) => {
+    if (!user) return;
+    const newPinned = !session.pinned;
+    try {
+      await updateDoc(doc(db, `users/${user.uid}/chatSessions`, session.id), { pinned: newPinned });
+      toast({ title: newPinned ? '📌 Pinned' : 'Unpinned' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Error' });
+    }
+  };
+
+  const pinned = sessions.filter(s => s.pinned);
+  const unpinned = sessions.filter(s => !s.pinned);
+
+  const renderSession = (session: ChatSession) => {
+    const isActive = currentChatSessionId === session.id;
+    const lastDate = session.lastMessageAt?.toDate?.() ?? null;
+    const isMenuOpen = openMenuId === session.id;
+
+    // ── Rename mode ──────────────────────────────────────────────────────
+    if (renamingId === session.id) {
       return (
-        <div className="flex flex-col items-center justify-center p-4 space-y-2">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-12 w-full bg-muted/50 rounded animate-pulse"></div>
-          ))}
+        <div key={session.id} className="flex items-center gap-1 p-1.5 mx-1 bg-muted/50 rounded-md">
+          <Input
+            ref={renameInputRef}
+            value={renameValue}
+            onChange={e => setRenameValue(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') handleRenameCommit(session.id);
+              if (e.key === 'Escape') setRenamingId(null);
+            }}
+            onBlur={() => handleRenameCommit(session.id)}
+            className="h-7 text-sm flex-1 min-w-0"
+            maxLength={60}
+          />
+          <Button size="icon" variant="ghost" className="h-7 w-7 flex-shrink-0"
+            onMouseDown={e => { e.preventDefault(); handleRenameCommit(session.id); }}>
+            <Check className="h-3.5 w-3.5 text-green-500" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-7 w-7 flex-shrink-0"
+            onMouseDown={e => { e.preventDefault(); setRenamingId(null); }}>
+            <X className="h-3.5 w-3.5" />
+          </Button>
         </div>
       );
     }
-    if (error) {
-      return (
-        <div className="text-destructive text-sm p-2 flex items-center rounded bg-destructive/10 border border-destructive/20 m-4">
-          <AlertCircle className="h-4 w-4 mr-2 shrink-0" /> <span className="flex-grow">{error}</span>
-        </div>
-      );
-    }
-    if (sessions.length === 0 && user) {
-      return (
-        <p className="text-sm text-muted-foreground text-center py-4 px-2">No chat history yet.</p>
-      );
-    }
+
+    // ── Normal mode ──────────────────────────────────────────────────────
     return (
-      <div className="space-y-1 p-2">
-        {sessions.map((session) => {
-          const lastMessageDate = session.lastMessageAt?.toDate ? session.lastMessageAt.toDate() : null;
-          return (
-            <div key={session.id} className="group relative">
-              <Button
-                variant="ghost"
-                onClick={() => onSelectChatSession(session.id)}
-                className={cn(
-                  "w-full justify-start text-left h-auto py-2.5 px-3 text-sm truncate",
-                  currentChatSessionId === session.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted/50'
-                )}
-                title={session.title}
-              >
-                <MessageSquareText className="mr-2.5 h-4 w-4 flex-shrink-0" />
-                <div className="flex-grow truncate">
-                  <p className="font-medium truncate">{session.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {lastMessageDate ? formatDistanceToNow(lastMessageDate, { addSuffix: true }) : 'Just now'}
-                  </p>
-                </div>
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Trash2 className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will permanently delete this chat session. This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => handleDeleteSession(session.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+      <div key={session.id} className="relative mx-1">
+        <div className={cn(
+          'flex items-center rounded-md transition-colors',
+          isActive ? 'bg-primary/10' : 'hover:bg-muted/30'
+        )}>
+          {/* Title */}
+          <button
+            onClick={() => onSelectChatSession(session.id)}
+            className="flex items-center flex-1 min-w-0 text-left py-2.5 pl-3 pr-1 gap-2"
+          >
+            <div className="relative flex-shrink-0">
+              <MessageSquareText className={cn('h-4 w-4 flex-shrink-0', isActive ? 'text-primary' : 'text-muted-foreground')} />
+              {session.pinned && <span className="absolute -top-1 -right-1 text-[8px]">📌</span>}
             </div>
-          )
-        })}
+            <div className="flex-1 min-w-0">
+              <p className={cn('text-sm font-medium truncate', isActive ? 'text-primary' : 'text-foreground')}>
+                {session.title}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {lastDate ? formatDistanceToNow(lastDate, { addSuffix: true }) : 'Just now'}
+              </p>
+            </div>
+          </button>
+
+          {/* ⋮ Menu trigger */}
+          <div data-menu className="flex-shrink-0 pr-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              data-menu
+              className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+              onClick={e => {
+                e.stopPropagation();
+                setOpenMenuId(isMenuOpen ? null : session.id);
+              }}
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Dropdown menu — absolutely positioned OUTSIDE ScrollArea clipping */}
+        {isMenuOpen && (
+          <div
+            data-menu
+            className="absolute right-0 top-9 z-[200] w-44 rounded-md border border-border bg-popover shadow-lg py-1"
+          >
+            <button
+              data-menu
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors"
+              onClick={() => { setOpenMenuId(null); setRenamingId(session.id); setRenameValue(session.title); }}
+            >
+              <Pencil className="h-3.5 w-3.5" /> Rename
+            </button>
+            <button
+              data-menu
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors"
+              onClick={() => { setOpenMenuId(null); handleTogglePin(session); }}
+            >
+              {session.pinned
+                ? <><PinOff className="h-3.5 w-3.5" /> Unpin</>
+                : <><Pin className="h-3.5 w-3.5" /> Pin to top</>}
+            </button>
+            <div className="h-px bg-border my-1" />
+            <button
+              data-menu
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+              onClick={() => { setOpenMenuId(null); setDeletingSession(session); }}
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Delete
+            </button>
+          </div>
+        )}
       </div>
     );
   };
 
   if (!user) {
     return (
-        <div className="flex h-full w-full items-center justify-center p-4">
-            <p className="text-sm text-center text-muted-foreground">
-                Please log in to see and save chat history.
-            </p>
-        </div>
+      <div className="flex h-full items-center justify-center p-4">
+        <p className="text-sm text-center text-muted-foreground">Please log in to see chat history.</p>
+      </div>
     );
   }
-  
+
   return (
-    <div className="flex flex-col h-full pt-8">
-      <div className="p-4 border-b border-border/40">
-        <Button onClick={onNewChat} variant="outline" className="w-full transition-shadow hover:shadow-md">
-            <PlusCircle className="mr-2 h-5 w-5" />
-            New Chat
-        </Button>
+    <>
+      <div className="flex flex-col h-full pt-14">
+        <div className="p-3 border-b border-border/40">
+          <Button onClick={onNewChat} variant="outline" className="w-full">
+            <PlusCircle className="mr-2 h-4 w-4" /> New Chat
+          </Button>
+        </div>
+
+        {/* Plain div instead of ScrollArea — avoids overflow:hidden clipping buttons */}
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="p-4 space-y-2">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-12 w-full bg-muted/50 rounded animate-pulse" />
+              ))}
+            </div>
+          ) : error ? (
+            <div className="text-destructive text-sm p-4 flex gap-2 bg-destructive/10 m-3 rounded">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />{error}
+            </div>
+          ) : sessions.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8 px-4">
+              No chats yet. Start a conversation!
+            </p>
+          ) : (
+            <div className="py-2 space-y-0.5">
+              {pinned.length > 0 && (
+                <>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 pt-2 pb-1">
+                    📌 Pinned
+                  </p>
+                  {pinned.map(renderSession)}
+                  {unpinned.length > 0 && (
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 pt-3 pb-1">
+                      Recent
+                    </p>
+                  )}
+                </>
+              )}
+              {unpinned.map(renderSession)}
+            </div>
+          )}
+        </div>
       </div>
-      <ScrollArea className="flex-1">
-        {renderHistoryList()}
-      </ScrollArea>
-    </div>
+
+      {/* Delete confirm dialog */}
+      <AlertDialog open={!!deletingSession} onOpenChange={open => !open && setDeletingSession(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this chat?</AlertDialogTitle>
+            <AlertDialogDescription>
+              &ldquo;{deletingSession?.title}&rdquo; will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingSession && handleDelete(deletingSession)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
