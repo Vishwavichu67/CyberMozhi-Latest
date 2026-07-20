@@ -1,9 +1,8 @@
-
 "use client";
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { MessageCircle, Gavel, BookOpen, Menu, LogIn, LogOut, Rocket, Loader2, UserCog, Home, FileSignature } from 'lucide-react';
+import { MessageCircle, Gavel, BookOpen, Menu, LogIn, LogOut, Rocket, Loader2, UserCog, Home, FileSignature, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useState } from 'react';
@@ -31,6 +30,7 @@ const navItems = [
   { href: '/law-summaries', label: 'Law Summaries', icon: Gavel },
   { href: '/glossary', label: 'Cyber Glossary', icon: BookOpen },
   { href: '/guide', label: 'Site Guide', icon: Rocket },
+  { href: '/cyber-cells', label: 'Cyber Cells', icon: Shield },
 ];
 
 export function Header() {

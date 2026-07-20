@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       query, userId, chatSessionId: incomingSessionId,
-      chatHistory, userName, userDetails, isProfileIncomplete,
+      chatHistory, userName, userDetails, isProfileIncomplete, tamilFirst,
     } = body;
 
     if (!query || !userId) {
@@ -80,9 +80,9 @@ export async function POST(req: NextRequest) {
         `${m.role === 'user' ? 'User' : 'CyberMozhi'}: ${m.parts.map(p => p.text).join(' ')}`
       ).join('\n');
 
-    const systemPrompt = buildCyberMozhiSystemPrompt();
+    const systemPrompt = buildCyberMozhiSystemPrompt(tamilFirst === true);
     const userPrompt = buildCyberMozhiUserPrompt(
-      { query, userName, userDetails, isProfileIncomplete, chatHistory },
+      { query, userName, userDetails, isProfileIncomplete, chatHistory, tamilFirst },
       ragContext,
       historyText
     );
