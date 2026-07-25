@@ -8,7 +8,7 @@ import {
   Send, User, Sparkles, Loader2, Bot,
   MessageCircle, AlertCircle, Menu,
   FileSignature, ShieldQuestion, Gavel,
-  Download, Copy, Check, Languages
+  Download, Copy, Check, Languages, ThumbsUp, ThumbsDown, Mic, MicOff
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -29,6 +29,7 @@ interface Message {
   role: 'user' | 'model';
   timestamp: string;
   isStreaming?: boolean;
+  suggestions?: string[];
 }
 interface FirestoreMessage { role: 'user' | 'model'; text: string; timestamp: Timestamp; }
 interface UserDetails {
@@ -210,6 +211,89 @@ function DownloadButton({ text }: { text: string }) {
   );
 }
 
+
+// ── Reaction buttons (👍 👎) ──────────────────────────────────────────────────
+function ReactionButtons({ messageId, userId, chatSessionId }: {
+  messageId: string;
+  userId: string;
+  chatSessionId: string | null;
+}) {
+  const [reaction, setReaction] = useState<'up' | 'down' | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const handleReact = async (type: 'up' | 'down') => {
+    if (saving || !chatSessionId || !userId) return;
+    const newReaction = reaction === type ? null : type;
+    setReaction(newReaction);
+    setSaving(true);
+    try {
+      const { doc, updateDoc } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      await updateDoc(
+        doc(db, `users/${userId}/chatSessions/${chatSessionId}/messages`, messageId),
+        { reaction: newReaction }
+      );
+    } catch (e) {
+      console.error('Reaction save failed:', e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        onClick={() => handleReact('up')}
+        disabled={saving}
+        title="Helpful"
+        className={cn(
+          'inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-all',
+          reaction === 'up'
+            ? 'border-green-500/40 text-green-600 bg-green-50 dark:bg-green-950/20'
+            : 'border-border text-muted-foreground hover:text-green-600 hover:border-green-400 hover:bg-green-50/50'
+        )}
+      >
+        <ThumbsUp className="h-3 w-3" />
+      </button>
+      <button
+        onClick={() => handleReact('down')}
+        disabled={saving}
+        title="Not helpful"
+        className={cn(
+          'inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-all',
+          reaction === 'down'
+            ? 'border-red-400/40 text-red-500 bg-red-50 dark:bg-red-950/20'
+            : 'border-border text-muted-foreground hover:text-red-500 hover:border-red-400 hover:bg-red-50/50'
+        )}
+      >
+        <ThumbsDown className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
+
+// ── Suggested follow-up questions ────────────────────────────────────────────
+function SuggestionsRow({ suggestions, onSelect }: {
+  suggestions: string[];
+  onSelect: (prompt: string) => void;
+}) {
+  if (!suggestions || suggestions.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-2 mt-2 px-1">
+      {suggestions.map((s, i) => (
+        <button
+          key={i}
+          onClick={() => onSelect(s)}
+          className="text-xs px-3 py-1.5 rounded-full border border-primary/30 text-primary bg-primary/5 hover:bg-primary/10 transition-colors text-left"
+        >
+          {s}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── Suggestions ───────────────────────────────────────────────────────────────
 
 // ── Copy Button ───────────────────────────────────────────────────────────────
@@ -290,7 +374,7 @@ function EmptyState({ onSuggestionClick }: { onSuggestionClick: (p: string) => v
 }
 
 // ── Messages list ─────────────────────────────────────────────────────────────
-function MessagesList({ messages, isSendingMessage }: { messages: Message[]; isSendingMessage: boolean }) {
+function MessagesList({ messages, isSendingMessage, userId, chatSessionId, onSuggestionSelect }: { messages: Message[]; isSendingMessage: boolean; userId: string; chatSessionId: string | null; onSuggestionSelect: (p: string) => void }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -331,9 +415,10 @@ function MessagesList({ messages, isSendingMessage }: { messages: Message[]; isS
               {/* Action row — copy always shown, download only for documents */}
               {msg.role === 'model' && !msg.isStreaming && msg.text && (
                 <div className="mt-1.5 px-1 flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <CopyButton text={msg.text} />
                     {hasDocumentDraft(msg.text) && <DownloadButton text={msg.text} />}
+                    <ReactionButtons messageId={msg.id} userId={userId} chatSessionId={chatSessionId} />
                   </div>
                   {hasDocumentDraft(msg.text) && (
                     <p className="text-[10px] text-muted-foreground ml-0.5">
@@ -341,6 +426,11 @@ function MessagesList({ messages, isSendingMessage }: { messages: Message[]; isS
                     </p>
                   )}
                 </div>
+              )}
+
+              {/* Follow-up suggestions */}
+              {msg.role === 'model' && !msg.isStreaming && msg.suggestions && msg.suggestions.length > 0 && (
+                <SuggestionsRow suggestions={msg.suggestions} onSelect={onSuggestionSelect} />
               )}
 
               <span className="text-xs text-muted-foreground mt-1 px-1">{msg.timestamp}</span>
@@ -384,6 +474,8 @@ export function ChatInterface({ chatSessionId, setChatSessionId, onToggleSidebar
   const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
   const [isProfileIncomplete, setIsProfileIncomplete] = useState(false);
   const [tamilFirst, setTamilFirst] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<Message[]>([]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
@@ -483,6 +575,9 @@ export function ChatInterface({ chatSessionId, setChatSessionId, onToggleSidebar
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buf = '';
+      // Track resolved session ID locally — needed for first message
+      // where chatSessionId prop is still null when suggestions arrive
+      let resolvedSessionId = chatSessionId;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -496,16 +591,23 @@ export function ChatInterface({ chatSessionId, setChatSessionId, onToggleSidebar
           if (!t || !t.startsWith('data: ')) continue;
           try {
             const data = JSON.parse(t.slice(6));
-            if (data.type === 'session' && data.chatSessionId && !chatSessionId) {
-              setChatSessionId(data.chatSessionId);
+            if (data.type === 'session' && data.chatSessionId) {
+              resolvedSessionId = data.chatSessionId;
+              if (!chatSessionId) setChatSessionId(data.chatSessionId);
             }
             if (data.type === 'token' && data.token) {
               if (!streamingBubbleAdded) {
                 setMessages(prev => [...prev, { id: streamId, text: data.token, role: 'model', isStreaming: true, timestamp: now }]);
                 streamingBubbleAdded = true;
+                // Note: resolvedSessionId will be updated when 'session' event arrives
               } else {
                 setMessages(prev => prev.map(m => m.id === streamId ? { ...m, text: m.text + data.token } : m));
               }
+            }
+            if (data.type === 'suggestions' && data.suggestions) {
+              setMessages(prev => prev.map(m =>
+                m.id === streamId ? { ...m, suggestions: data.suggestions } : m
+              ));
             }
             if (data.type === 'done') {
               setMessages(prev => prev.map(m => m.id === streamId ? { ...m, isStreaming: false } : m));
@@ -525,6 +627,59 @@ export function ChatInterface({ chatSessionId, setChatSessionId, onToggleSidebar
     }
   }, [input, isSendingMessage, authLoading, isLoggedIn, user, chatSessionId,
       setChatSessionId, userDetails, isProfileIncomplete, toast, tamilFirst]);
+
+  // ── Voice input ─────────────────────────────────────────────────────────────
+  const startVoiceInput = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SR) {
+      toast({
+        variant: 'destructive',
+        title: 'Browser not supported',
+        description: 'Voice input works in Chrome or Edge. Try opening in Chrome.',
+      });
+      return;
+    }
+
+    // Toggle off if already listening
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const recognition = new SR();
+    // Use Tamil locale when Tamil-first is on, else Indian English
+    recognition.lang = tamilFirst ? 'ta-IN' : 'en-IN';
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => setIsListening(true);
+
+    recognition.onresult = (e: any) => {
+      const transcript = Array.from(e.results)
+        .map((r: any) => r[0].transcript)
+        .join('');
+      setInput(transcript);
+    };
+
+    recognition.onend = () => setIsListening(false);
+
+    recognition.onerror = (e: any) => {
+      setIsListening(false);
+      if (e.error === 'not-allowed') {
+        toast({
+          variant: 'destructive',
+          title: 'Microphone blocked',
+          description: 'Allow microphone access in your browser settings and try again.',
+        });
+      }
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
 
   const showEmpty = !isLoading && !error && messages.length === 0;
 
@@ -571,7 +726,7 @@ export function ChatInterface({ chatSessionId, setChatSessionId, onToggleSidebar
         ) : showEmpty ? (
           <EmptyState onSuggestionClick={p => handleSubmit(p)} />
         ) : (
-          <MessagesList messages={messages} isSendingMessage={isSendingMessage} />
+          <MessagesList messages={messages} isSendingMessage={isSendingMessage} userId={user?.uid || ''} chatSessionId={chatSessionId} onSuggestionSelect={p => handleSubmit(p)} />
         )}
       </div>
 
@@ -587,6 +742,21 @@ export function ChatInterface({ chatSessionId, setChatSessionId, onToggleSidebar
               rows={1}
               disabled={isSendingMessage || authLoading || !isLoggedIn || isLoading}
             />
+            <Button
+              type="button"
+              size="icon"
+              onClick={startVoiceInput}
+              disabled={isSendingMessage || authLoading || !isLoggedIn || isLoading}
+              title={isListening ? 'Stop listening' : tamilFirst ? 'Voice input (Tamil)' : 'Voice input (English)'}
+              className={cn(
+                'h-10 w-10 rounded-full flex-shrink-0 transition-all duration-200',
+                isListening
+                  ? 'bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/30 animate-pulse'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+              )}
+            >
+              {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+            </Button>
             <Button type="submit" size="icon" className="h-10 w-10 rounded-full flex-shrink-0"
               disabled={isSendingMessage || authLoading || !isLoggedIn || !input.trim() || isLoading}>
               {isSendingMessage ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}

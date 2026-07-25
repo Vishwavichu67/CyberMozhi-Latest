@@ -1,5 +1,17 @@
 {
-  "node": {},
+  "node": {
+    "4051f1de2c1d84a0e2d758a58ee9888cf3e7448c57": {
+      "workers": {
+        "app/api/chat/route": {
+          "moduleId": "(rsc)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2Fhome%2Fuser%2Fstudio%2Fsrc%2Fai%2Fflows%2Fchat-title-generator.ts%22%2C%5B%7B%22id%22%3A%224051f1de2c1d84a0e2d758a58ee9888cf3e7448c57%22%2C%22exportedName%22%3A%22generateChatTitle%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/api/chat/route": "rsc"
+      }
+    }
+  },
   "edge": {},
   "encryptionKey": "Ld+GfFiy4wacZ0/0N4J4e9PItMnhtJDgBqdrQyBHNIM="
 }

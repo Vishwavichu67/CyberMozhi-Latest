@@ -11,15 +11,15 @@
       "static/chunks/main-app.js",
       "static/chunks/app/page.js"
     ],
-    "/cyber-cells/page": [
+    "/chat/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/cyber-cells/page.js"
+      "static/chunks/app/chat/page.js"
     ],
-    "/law-summaries/page": [
+    "/api/chat/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/law-summaries/page.js"
+      "static/chunks/app/api/chat/route.js"
     ]
   }
 }

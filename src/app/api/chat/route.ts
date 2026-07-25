@@ -56,6 +56,92 @@ async function setupSessionAndSave(
   return chatSessionId;
 }
 
+// ── Local suggestion generator — no API call needed ──────────────────────────
+function generateSuggestions(query: string, response: string): string[] {
+  const text = (query + ' ' + response).toLowerCase();
+
+  const allSuggestions: { keywords: string[]; questions: string[] }[] = [
+    {
+      keywords: ['fir', 'complaint', 'file', 'police', 'report', 'draft'],
+      questions: [
+        'What documents do I need to attach to the FIR?',
+        'Can I file the complaint online at cybercrime.gov.in?',
+        'What happens after I file the FIR?',
+      ],
+    },
+    {
+      keywords: ['section 66', 'it act', 'punishment', 'penalty', 'imprisonment', 'fine'],
+      questions: [
+        'What is the maximum penalty under this section?',
+        'Can I get bail if arrested under this law?',
+        'How long does a cyber crime case take in court?',
+      ],
+    },
+    {
+      keywords: ['phishing', 'fraud', 'scam', 'otp', 'upi', 'bank', 'money', 'financial'],
+      questions: [
+        'How can I recover the money lost in the fraud?',
+        'Should I immediately block my bank account?',
+        'How do I report to my bank about this fraud?',
+      ],
+    },
+    {
+      keywords: ['identity theft', '66c', 'password', 'account', 'hacked', 'credentials'],
+      questions: [
+        'How do I secure my accounts immediately?',
+        'Can I track who stole my identity online?',
+        'What compensation can I claim for identity theft?',
+      ],
+    },
+    {
+      keywords: ['sextortion', 'blackmail', 'harassment', 'threat', 'obscene', 'image', 'video'],
+      questions: [
+        'Should I pay the blackmailer? (Short answer: No)',
+        'How do I report sextortion to cyber police?',
+        'Will my identity be kept private when I report?',
+      ],
+    },
+    {
+      keywords: ['social media', 'facebook', 'instagram', 'twitter', 'whatsapp', 'fake profile'],
+      questions: [
+        'How do I report a fake profile to the platform?',
+        'Can police trace a fake social media account?',
+        'What evidence should I save before reporting?',
+      ],
+    },
+    {
+      keywords: ['dpdp', 'data protection', 'privacy', 'personal data', 'data breach'],
+      questions: [
+        'What are my rights under the DPDP Act 2023?',
+        'How do I report a personal data breach?',
+        'Can I claim compensation for a data breach?',
+      ],
+    },
+    {
+      keywords: ['cyber cell', 'police station', 'helpline', '1930', 'where to report'],
+      questions: [
+        'What should I carry when visiting the cyber cell?',
+        'Can I file the complaint online instead?',
+        'How long does the cyber police take to respond?',
+      ],
+    },
+  ];
+
+  // Find matching suggestion set based on keywords
+  for (const item of allSuggestions) {
+    if (item.keywords.some(kw => text.includes(kw))) {
+      return item.questions;
+    }
+  }
+
+  // Default fallback suggestions
+  return [
+    'How do I report this to the cyber police?',
+    'What evidence should I collect?',
+    'Can I get legal help for free?',
+  ];
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -149,13 +235,23 @@ export async function POST(req: NextRequest) {
         // Stream done — resolve so Firestore can save the full response
         resolveFullResponse(fullResponse);
 
-        // Wait for session ID (Firestore may still be creating it)
+        // Generate follow-up suggestions locally — no extra API call, no rate limit risk
+        const suggestions = generateSuggestions(query, fullResponse);
+
+        // Wait for session ID (Firestore finishing in background)
         const chatSessionId = await sessionIdPromise;
 
-        // Send session ID and done signal to client
+        // Send session ID FIRST so client can bind chatSessionId before suggestions arrive
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ type: 'session', chatSessionId })}\n\n`)
         );
+
+        // Then send suggestions
+        if (suggestions.length > 0) {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ type: 'suggestions', suggestions })}\n\n`)
+          );
+        }
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
         );
