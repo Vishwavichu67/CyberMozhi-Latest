@@ -684,25 +684,30 @@ export function ChatInterface({ chatSessionId, setChatSessionId, onToggleSidebar
   const showEmpty = !isLoading && !error && messages.length === 0;
 
   return (
-    <div className="flex flex-col h-full bg-background overflow-hidden">
-      <header className="flex-shrink-0 flex items-center p-3 border-b border-border/40 bg-background/95 backdrop-blur-sm">
-        <Button variant="ghost" size="icon" onClick={onToggleSidebar} className="mr-2 md:hidden">
-          <Menu className="h-5 w-5" /><span className="sr-only">Toggle sidebar</span>
+    <div className="flex flex-col h-full min-h-0 bg-background overflow-hidden">
+      <header className="flex-shrink-0 flex items-center gap-1.5 px-2 py-2 sm:px-3 sm:py-3 border-b border-border/40 bg-background/95 backdrop-blur-sm">
+        {/* Hamburger — mobile only */}
+        <Button variant="ghost" size="icon" onClick={onToggleSidebar} className="md:hidden h-8 w-8 flex-shrink-0">
+          <Menu className="h-4 w-4" /><span className="sr-only">Toggle sidebar</span>
         </Button>
-        <Avatar className="h-9 w-9 mr-3">
-          <AvatarFallback className="bg-primary text-primary-foreground"><Bot className="h-5 w-5" /></AvatarFallback>
+        {/* Avatar — smaller on mobile */}
+        <Avatar className="h-7 w-7 sm:h-9 sm:w-9 flex-shrink-0">
+          <AvatarFallback className="bg-primary text-primary-foreground">
+            <Bot className="h-4 w-4 sm:h-5 sm:w-5" />
+          </AvatarFallback>
         </Avatar>
-        <div className="flex-1">
-          <h1 className="text-md font-bold text-primary">CyberMozhi</h1>
-          <p className={cn('text-xs', isLoggedIn ? 'text-green-600' : 'text-destructive font-medium')}>
-            {authLoading ? 'Connecting...' : isLoggedIn ? 'Online' : 'Offline — Please login'}
+        {/* Title — flex-1 but min-w-0 so it shrinks */}
+        <div className="flex-1 min-w-0">
+          <h1 className="text-sm sm:text-md font-bold text-primary leading-tight">CyberMozhi</h1>
+          <p className={cn('text-[10px] sm:text-xs leading-tight', isLoggedIn ? 'text-green-600' : 'text-destructive font-medium')}>
+            {authLoading ? 'Connecting...' : isLoggedIn ? 'Online' : 'Offline'}
           </p>
         </div>
-        {/* Tamil-first toggle */}
+        {/* Tamil-first toggle — icon only on xs, text on sm+ */}
         <button
           onClick={() => setTamilFirst(prev => !prev)}
           className={cn(
-            'flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-all mr-1',
+            'flex items-center gap-1 text-xs px-2 py-1.5 sm:px-3 rounded-full border transition-all flex-shrink-0',
             tamilFirst
               ? 'bg-primary text-primary-foreground border-primary'
               : 'border-border text-muted-foreground hover:border-primary hover:text-primary'
@@ -710,11 +715,13 @@ export function ChatInterface({ chatSessionId, setChatSessionId, onToggleSidebar
           title={tamilFirst ? 'Switch to English first' : 'Switch to Tamil first'}
         >
           <Languages className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">{tamilFirst ? 'தமிழ் முதல்' : 'Tamil First'}</span>
+          <span className="hidden xs:inline sm:inline text-[11px]">
+            {tamilFirst ? 'தமிழ்' : 'Tamil'}
+          </span>
         </button>
       </header>
 
-      <div className="flex-1 overflow-hidden flex flex-col">
+      <div className="flex-1 overflow-hidden flex flex-col min-h-0">
         {isLoading ? (
           <div className="flex items-center justify-center h-full gap-3 text-muted-foreground">
             <Loader2 className="w-6 h-6 animate-spin" /><p className="text-sm">Loading chat...</p>
@@ -730,8 +737,8 @@ export function ChatInterface({ chatSessionId, setChatSessionId, onToggleSidebar
         )}
       </div>
 
-      <footer className="flex-shrink-0 border-t border-border/40 bg-background/95">
-        <div className="p-2 sm:p-3">
+      <footer className="flex-shrink-0 border-t border-border/40 bg-background/95 z-10">
+        <div className="p-2">
           <form onSubmit={handleSubmit} className="flex items-center gap-2">
             <Textarea
               value={input}

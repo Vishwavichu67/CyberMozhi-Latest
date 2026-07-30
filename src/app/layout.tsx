@@ -1,4 +1,3 @@
-
 'use client';
 
 import './globals.css';
@@ -32,10 +31,21 @@ export default function RootLayout({
         <meta name="description" content="Your one-stop cybersecurity knowledge center and virtual legal advisor for Indian netizens." />
         <link rel="icon" href="/favicon.png" />
       </head>
-      <body className={cn(
-        "min-h-screen bg-background font-body antialiased flex flex-col",
-        isChatPage && "h-screen overflow-hidden"
-      )}>
+      {/*
+        KEY FIXES vs original:
+        1. body always has h-screen overflow-hidden (not conditional) so
+           flex children can use h-full reliably on all screen sizes
+        2. main uses flex-1 min-h-0 instead of flex-grow (min-h-0 allows
+           flex children to shrink — without it, footer gets pushed off screen)
+        3. Removed items-center from main on chat page (it breaks full-width layout)
+      */}
+      <body
+        suppressHydrationWarning
+        className={cn(
+          'h-screen overflow-hidden bg-background font-body antialiased flex flex-col',
+          inter.variable
+        )}
+      >
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -45,10 +55,16 @@ export default function RootLayout({
           <AuthProvider>
             <Header />
             <main className={cn(
-              "flex-grow w-full flex flex-col items-center",
-               isChatPage ? "flex-1 overflow-hidden" : "container mx-auto px-4 py-8"
+              'flex-1 min-h-0 w-full flex flex-col',
+              isChatPage
+                ? 'overflow-hidden'
+                : 'items-center overflow-y-auto'
             )}>
-              {children}
+              {isChatPage ? children : (
+                <div className="container mx-auto px-4 py-8 w-full">
+                  {children}
+                </div>
+              )}
             </main>
             {!isChatPage && <Footer />}
             <Toaster />

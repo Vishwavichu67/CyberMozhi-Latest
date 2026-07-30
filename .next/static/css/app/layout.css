@@ -1766,6 +1766,9 @@ video {
 .shrink-0 {
   flex-shrink: 0;
 }
+.shrink {
+  flex-shrink: 1;
+}
 .flex-grow {
   flex-grow: 1;
 }
@@ -2528,6 +2531,9 @@ video {
   font-size: 0.75rem;
   line-height: 1rem;
 }
+.text-\[11px\] {
+  font-size: 11px;
+}
 .font-bold {
   font-weight: 700;
 }
@@ -2555,6 +2561,9 @@ video {
 }
 .leading-relaxed {
   line-height: 1.625;
+}
+.leading-tight {
+  line-height: 1.25;
 }
 .tracking-tight {
   letter-spacing: -0.025em;
@@ -4029,12 +4038,28 @@ video {
     height: 5rem;
   }
 
+  .sm\:h-5 {
+    height: 1.25rem;
+  }
+
+  .sm\:h-9 {
+    height: 2.25rem;
+  }
+
   .sm\:w-20 {
     width: 5rem;
   }
 
   .sm\:w-auto {
     width: auto;
+  }
+
+  .sm\:w-5 {
+    width: 1.25rem;
+  }
+
+  .sm\:w-9 {
+    width: 2.25rem;
   }
 
   .sm\:max-w-sm {
@@ -4122,6 +4147,11 @@ video {
     padding-bottom: 5rem;
   }
 
+  .sm\:py-3 {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+
   .sm\:text-left {
     text-align: left;
   }
@@ -4154,6 +4184,11 @@ video {
   .sm\:text-xl {
     font-size: 1.25rem;
     line-height: 1.75rem;
+  }
+
+  .sm\:text-xs {
+    font-size: 0.75rem;
+    line-height: 1rem;
   }
 
   .data-\[state\=open\]\:sm\:slide-in-from-bottom-full[data-state="open"] {
