@@ -14,25 +14,30 @@ export default function ChatPage() {
   const router = useRouter();
 
   const [chatSessionId, setChatSessionId] = useState<string | null>(null);
-  // Desktop: sidebar open by default. Mobile: closed by default.
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
+
+  // Separate state for mobile overlay vs desktop panel
+  const [mobileOpen, setMobileOpen] = useState(false);      // mobile overlay
+  const [desktopOpen, setDesktopOpen] = useState(true);     // desktop inline panel
 
   useEffect(() => {
     if (!loading && !user) router.push('/login');
   }, [user, loading, router]);
 
-  // On mobile, close sidebar after selecting a chat
   const handleSelectChatSession = useCallback((sessionId: string | null) => {
     setChatSessionId(sessionId);
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setSidebarOpen(false);
-    }
+    setMobileOpen(false); // always close mobile overlay after selection
   }, []);
 
   const handleNewChat = useCallback(() => {
     setChatSessionId(null);
+    setMobileOpen(false);
+  }, []);
+
+  const handleToggleSidebar = useCallback(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setSidebarOpen(false);
+      setMobileOpen(prev => !prev);   // mobile: toggle overlay
+    } else {
+      setDesktopOpen(prev => !prev);  // desktop: toggle inline panel
     }
   }, []);
 
@@ -45,31 +50,37 @@ export default function ChatPage() {
   }
 
   return (
-    // h-full works because layout.tsx gives main min-h-0 + flex-1
-    <div className="flex w-full h-full min-h-0">
+    <div className="flex w-full h-full overflow-hidden">
 
-      {/* Mobile backdrop */}
-      {isSidebarOpen && (
+      {/* Mobile backdrop — only when overlay is open */}
+      {mobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 md:hidden"
-          onClick={() => setSidebarOpen(false)}
+          onClick={() => setMobileOpen(false)}
         />
       )}
 
-      {/* Sidebar
-          Mobile: fixed overlay slides from left (z-50)
-          Desktop: inline static column, toggled with md:hidden
+      {/*
+        SIDEBAR
+        ───────
+        Mobile (<768px):
+          - Always fixed overlay (z-50)
+          - Controlled by mobileOpen: slides in/out with translate-x
+          - Never affects desktop layout
+
+        Desktop (≥768px):
+          - Static flex column, part of the page flow
+          - Controlled by desktopOpen: collapses with w-0 / hidden
+          - Never uses translate (avoids md:hidden conflict)
       */}
+
+      {/* MOBILE sidebar — fixed overlay, hidden on desktop */}
       <aside className={cn(
-        // Mobile: always fixed overlay
         'fixed inset-y-0 left-0 z-50 w-72 flex flex-col',
         'bg-background border-r border-border/40',
         'transition-transform duration-200 ease-in-out',
-        // Desktop: static, participates in flex flow
-        'md:static md:inset-auto md:z-auto md:flex-shrink-0',
-        'md:transition-none',
-        // Show/hide
-        isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:-translate-x-full md:hidden',
+        'md:hidden', // never shows on desktop
+        mobileOpen ? 'translate-x-0' : '-translate-x-full'
       )}>
         <ChatHistorySidebar
           currentChatSessionId={chatSessionId}
@@ -78,12 +89,26 @@ export default function ChatPage() {
         />
       </aside>
 
-      {/* Chat area — takes all remaining width, strict height containment */}
+      {/* DESKTOP sidebar — static inline, hidden on mobile */}
+      <aside className={cn(
+        'hidden md:flex flex-col flex-shrink-0',
+        'bg-background border-r border-border/40',
+        'transition-all duration-200 ease-in-out',
+        desktopOpen ? 'w-72' : 'w-0 overflow-hidden border-r-0'
+      )}>
+        <ChatHistorySidebar
+          currentChatSessionId={chatSessionId}
+          onSelectChatSession={handleSelectChatSession}
+          onNewChat={handleNewChat}
+        />
+      </aside>
+
+      {/* Chat area — fills remaining width */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         <ChatInterface
           chatSessionId={chatSessionId}
           setChatSessionId={setChatSessionId}
-          onToggleSidebar={() => setSidebarOpen(prev => !prev)}
+          onToggleSidebar={handleToggleSidebar}
           onNewChat={handleNewChat}
         />
       </div>
