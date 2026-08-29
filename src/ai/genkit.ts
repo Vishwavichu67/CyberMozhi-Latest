@@ -7,6 +7,26 @@ import { genkit } from 'genkit';
 export const ai = genkit({ plugins: [] });
 
 /**
+ * Thrown when Groq responds with 429 (rate limit exceeded).
+ * Carries a friendly message and, when available, a retry-after hint (seconds).
+ */
+export class RateLimitError extends Error {
+  retryAfterSeconds?: number;
+  constructor(message: string, retryAfterSeconds?: number) {
+    super(message);
+    this.name = 'RateLimitError';
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+function parseRetryAfter(response: Response): number | undefined {
+  const header = response.headers.get('retry-after');
+  if (!header) return undefined;
+  const seconds = Number(header);
+  return Number.isFinite(seconds) ? seconds : undefined;
+}
+
+/**
  * Calls Groq — returns full response string.
  * Used by: chat-title-generator, document-generator, cyber-attack-summarizer.
  */
@@ -28,12 +48,19 @@ export async function callGroq(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       messages,
       temperature: 0.7,
       max_tokens: 2048,
     }),
   });
+
+  if (response.status === 429) {
+    throw new RateLimitError(
+      "CyberMozhi's AI is handling a lot of requests right now. Please try again in a moment.",
+      parseRetryAfter(response)
+    );
+  }
 
   if (!response.ok) {
     const err = await response.text();
@@ -69,13 +96,20 @@ export async function callGroqStream(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       messages,
       temperature: 0.7,
       max_tokens: 2048,
       stream: true,
     }),
   });
+
+  if (response.status === 429) {
+    throw new RateLimitError(
+      "CyberMozhi's AI is handling a lot of requests right now. Please try again in a moment.",
+      parseRetryAfter(response)
+    );
+  }
 
   if (!response.ok) {
     const err = await response.text();

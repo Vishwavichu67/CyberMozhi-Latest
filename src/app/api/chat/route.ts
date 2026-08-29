@@ -10,7 +10,7 @@
  */
 
 import { NextRequest } from 'next/server';
-import { callGroqStream } from '@/ai/genkit';
+import { callGroqStream, RateLimitError } from '@/ai/genkit';
 import { buildCyberMozhiSystemPrompt, buildCyberMozhiUserPrompt } from '@/ai/flows/chatbot-prompts';
 import { retrieveRelevantChunks, formatChunksAsContext } from '@/ai/flows/rag-retriever';
 import { generateChatTitle } from '@/ai/flows/chat-title-generator';
@@ -274,6 +274,24 @@ export async function POST(req: NextRequest) {
 
   } catch (e: any) {
     console.error('[/api/chat]', e);
+
+    if (e instanceof RateLimitError) {
+      return new Response(
+        JSON.stringify({
+          error: e.message,
+          type: 'rate_limit',
+          retryAfterSeconds: e.retryAfterSeconds,
+        }),
+        {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(e.retryAfterSeconds ? { 'Retry-After': String(e.retryAfterSeconds) } : {}),
+          },
+        }
+      );
+    }
+
     return new Response(JSON.stringify({ error: e?.message || 'Unknown error' }), {
       status: 500, headers: { 'Content-Type': 'application/json' },
     });

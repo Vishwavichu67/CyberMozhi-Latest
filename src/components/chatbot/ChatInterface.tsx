@@ -570,7 +570,14 @@ export function ChatInterface({ chatSessionId, setChatSessionId, onToggleSidebar
         }),
       });
 
-      if (!res.ok || !res.body) throw new Error(`Server error: ${res.status}`);
+      if (!res.ok || !res.body) {
+        let friendlyMsg = `Server error: ${res.status}`;
+        try {
+          const errBody = await res.json();
+          if (errBody?.error) friendlyMsg = errBody.error;
+        } catch { /* body wasn't JSON, keep generic message */ }
+        throw new Error(friendlyMsg);
+      }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();

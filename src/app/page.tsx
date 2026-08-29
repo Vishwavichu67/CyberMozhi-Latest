@@ -1,85 +1,216 @@
-
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Loader2,
   MessageCircle,
-  FileText,
   BookOpen,
-  LogIn,
   UserPlus,
   ArrowRight,
   Sparkles,
-  LayoutDashboard,
-  Lightbulb,
-  ScrollText,
-  FileLock,
-  KeyRound,
-  FileSignature,
-  UserCircle2,
   ShieldCheck,
-  Network as NetworkIcon,
-  ClipboardCheck,
+  ScanSearch,
+  Shield,
+  Rocket,
+  BrainCircuit,
+  Trophy,
+  RefreshCw,
+  ChevronRight,
   Scale,
-  BrainCircuit
+  PhoneCall,
 } from "lucide-react";
 import { lawSummaries, type LawSummary } from "@/data/law-summaries";
 import { glossaryTerms, type GlossaryTerm } from "@/data/glossary-terms";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const sampleTopics = [
-  { name: "Phishing Attacks", icon: UserPlus, description: "Learn to identify and avoid deceptive emails and messages.", link: "/glossary#1" },
-  { name: "Ransomware Threats", icon: FileLock, description: "Understand how ransomware works and how to protect your data.", link: "/glossary#10" },
-  { name: "IT Act: Section 66C", icon: KeyRound, description: "Identity theft and its legal consequences under Indian law.", link: "/law-summaries#3" },
-  { name: "Digital Signatures", icon: FileSignature, description: "The role and legality of digital signatures in India.", link: "/glossary#33" },
+// ── Emergency helplines ──────────────────────────────────────────────────────
+const EMERGENCY_CONTACTS = [
+  { number: "1930", label: "Cyber Crime" },
+  { number: "181", label: "Women Helpline" },
+  { number: "1098", label: "Child Helpline" },
+  { number: "112", label: "Emergency" },
 ];
 
-const coreFeatures = [
+// ── Feature access cards ─────────────────────────────────────────────────────
+const featureCards = [
   {
     icon: MessageCircle,
-    title: "AI Chatbot Assistant",
-    description: "Get instant, bilingual (Tamil & English) answers to your cyber law and security questions. Understand complex terms and mitigation techniques.",
+    title: "AI Chatbot",
+    description: "Bilingual Tamil & English answers to your cyber law questions, instantly.",
     link: "/chat",
-    linkText: "Ask AI Now",
   },
   {
-    icon: FileText,
-    title: "Indian Cyber Law Summaries",
-    description: "Explore concise summaries of key sections from the Indian IT Act 2000 and relevant IPC sections. Know your rights and legal remedies.",
+    icon: Scale,
+    title: "Law Summaries",
+    description: "Plain-language summaries of the IT Act 2000 and related IPC sections.",
     link: "/law-summaries",
-    linkText: "Explore Laws",
   },
   {
     icon: BookOpen,
-    title: "Cybersecurity Glossary",
-    description: "Demystify complex cybersecurity and legal jargon with our layman-friendly glossary. Enhance your digital literacy.",
+    title: "Cyber Glossary",
+    description: "100+ cybersecurity and legal terms explained without the jargon.",
     link: "/glossary",
-    linkText: "Browse Glossary",
+  },
+  {
+    icon: ScanSearch,
+    title: "Scam Checker",
+    description: "Paste a message or link and check whether it looks like a scam.",
+    link: "/scam-checker",
+  },
+  {
+    icon: Shield,
+    title: "Cyber Cells",
+    description: "Find the nearest Cyber Crime Cell in any of India's 36 states & UTs.",
+    link: "/cyber-cells",
+  },
+  {
+    icon: Rocket,
+    title: "Site Guide",
+    description: "New here? A quick walkthrough of everything CyberMozhi offers.",
+    link: "/guide",
   },
 ];
 
+// ── Quick Quiz — 5 random questions each session ─────────────────────────────
+const ALL_QUIZ_QUESTIONS = [
+  { q: "What does 'Phishing' mean?", options: ["Catching fish online", "Tricking users into revealing personal info", "A type of firewall", "Encrypting data"], correct: 1, tip: "Phishing uses fake emails/messages to steal passwords and bank details." },
+  { q: "Which IT Act section covers Identity Theft?", options: ["Section 43", "Section 66A", "Section 66C", "Section 72"], correct: 2, tip: "Section 66C punishes fraudulent use of someone's electronic signature or password." },
+  { q: "What is the national cyber crime helpline number?", options: ["100", "1930", "1800", "112"], correct: 1, tip: "Dial 1930 to report cyber crimes and freeze fraudulent transactions immediately." },
+  { q: "What is 'Ransomware'?", options: ["A legal term for ransom", "Malware that locks your files for payment", "A safe backup tool", "A type of antivirus"], correct: 1, tip: "Ransomware encrypts your files and demands payment — never pay the ransom." },
+  { q: "Where do you officially report cyber crimes in India?", options: ["police.india.gov.in", "cybercrime.gov.in", "ncrb.gov.in", "mha.nic.in"], correct: 1, tip: "cybercrime.gov.in is the National Cyber Crime Reporting Portal by MHA." },
+  { q: "What does Two-Factor Authentication protect against?", options: ["Slow internet", "Unauthorised account access", "Data corruption", "Spam emails"], correct: 1, tip: "2FA adds a second verification step making it harder for attackers to access accounts." },
+  { q: "OTP fraud falls under which IT Act section?", options: ["Section 65", "Section 66D", "Section 69", "Section 43A"], correct: 1, tip: "Section 66D covers cheating by impersonation using computer resources." },
+  { q: "What should you do FIRST if you lose money to online fraud?", options: ["Wait and see", "Call 1930 immediately", "Post on social media", "Reset passwords only"], correct: 1, tip: "Call 1930 immediately — rapid response can freeze the fraudulent transaction." },
+  { q: "What is 'Sextortion'?", options: ["A type of encryption", "Blackmail using intimate images", "A phishing variant", "Safe messaging"], correct: 1, tip: "Sextortion is blackmail using intimate content — report immediately, do not pay." },
+  { q: "Which act governs personal data protection in India (2023)?", options: ["IT Act 2000", "IPC 1860", "DPDP Act 2023", "RTI Act 2005"], correct: 2, tip: "The Digital Personal Data Protection Act 2023 gives Indians rights over their personal data." },
+];
+
+function QuickQuizSection() {
+  const [questions] = useState(() => {
+    const shuffled = [...ALL_QUIZ_QUESTIONS].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 5);
+  });
+  const [current, setCurrent] = useState(0);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [score, setScore] = useState(0);
+  const [finished, setFinished] = useState(false);
+
+  const q = questions[current];
+
+  const handleSelect = useCallback((idx: number) => {
+    if (selected !== null) return;
+    setSelected(idx);
+    if (idx === q.correct) setScore((s) => s + 1);
+  }, [selected, q.correct]);
+
+  const handleNext = useCallback(() => {
+    if (current < questions.length - 1) {
+      setCurrent((c) => c + 1);
+      setSelected(null);
+    } else {
+      setFinished(true);
+    }
+  }, [current, questions.length]);
+
+  const handleReset = () => {
+    setCurrent(0);
+    setSelected(null);
+    setScore(0);
+    setFinished(false);
+  };
+
+  const pct = Math.round((score / questions.length) * 100);
+
+  return (
+    <div className="bg-card border border-border rounded-2xl p-5 h-full flex flex-col">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+          <Trophy className="h-4 w-4 text-primary" />
+        </div>
+        <div>
+          <h3 className="text-sm font-bold text-foreground font-headline">Quick Quiz</h3>
+          <p className="text-xs text-muted-foreground">5 questions · under 2 min</p>
+        </div>
+      </div>
+
+      <div className="flex-grow flex flex-col">
+        {!finished ? (
+          <>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs text-muted-foreground">Q{current + 1} of {questions.length}</span>
+              <div className="flex gap-1">
+                {questions.map((_, i) => (
+                  <div key={i} className={`h-1.5 w-5 rounded-full transition-colors ${i < current ? "bg-green-500" : i === current ? "bg-primary" : "bg-muted"}`} />
+                ))}
+              </div>
+            </div>
+
+            <p className="text-sm font-semibold text-foreground mb-3">{q.q}</p>
+
+            <div className="space-y-1.5 mb-3">
+              {q.options.map((opt, i) => {
+                let cls = "border-border text-foreground hover:border-primary/50 hover:bg-muted/30 cursor-pointer";
+                if (selected !== null) {
+                  if (i === q.correct) cls = "border-green-500 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 cursor-default";
+                  else if (i === selected) cls = "border-red-400 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 cursor-default";
+                  else cls = "border-border text-muted-foreground opacity-50 cursor-default";
+                }
+                return (
+                  <button key={i} onClick={() => handleSelect(i)}
+                    className={`w-full text-left text-xs px-3 py-2 rounded-lg border transition-all ${cls}`}>
+                    {opt}
+                  </button>
+                );
+              })}
+            </div>
+
+            {selected !== null && (
+              <div className="bg-muted/50 rounded-lg px-3 py-2 text-xs text-muted-foreground mb-3">
+                💡 {q.tip}
+              </div>
+            )}
+
+            <Button onClick={handleNext} disabled={selected === null} size="sm" className="w-full gap-2 mt-auto">
+              {current < questions.length - 1 ? <>Next <ChevronRight className="h-4 w-4" /></> : "See Results"}
+            </Button>
+          </>
+        ) : (
+          <div className="text-center py-2 m-auto">
+            <div className="text-4xl mb-2">{pct >= 80 ? "🏆" : pct >= 60 ? "👍" : "📚"}</div>
+            <p className="text-xl font-bold text-foreground mb-1">{score}/{questions.length} Correct</p>
+            <p className="text-xs text-muted-foreground mb-4">
+              {pct >= 80 ? "Excellent! You're cyber-safety savvy." : pct >= 60 ? "Good effort! Keep learning." : "Keep practising — it matters!"}
+            </p>
+            <div className="flex gap-2 justify-center flex-wrap">
+              <Button onClick={handleReset} variant="outline" size="sm" className="gap-2">
+                <RefreshCw className="h-3.5 w-3.5" /> Try Again
+              </Button>
+              <Button asChild size="sm" className="gap-2">
+                <Link href="/chat">Ask AI <ChevronRight className="h-3.5 w-3.5" /></Link>
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function HomePage() {
   const { user, isLoggedIn, loading: authLoading } = useAuth();
-  
+
   const [termOfTheDay, setTermOfTheDay] = useState<GlossaryTerm | null>(null);
   const [lawOfTheDay, setLawOfTheDay] = useState<LawSummary | null>(null);
   const [isDailyContentLoaded, setIsDailyContentLoaded] = useState(false);
 
   useEffect(() => {
-    // This logic now runs only on the client, after hydration
     const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
-    
     const termIndex = dayOfYear % glossaryTerms.length;
     const lawIndex = dayOfYear % lawSummaries.length;
-    
     setTermOfTheDay(glossaryTerms[termIndex]);
     setLawOfTheDay(lawSummaries[lawIndex]);
     setIsDailyContentLoaded(true);
@@ -94,245 +225,208 @@ export default function HomePage() {
     );
   }
 
-  // Common "Of the Day" section
-  const OfTheDaySection = () => (
-    <section className="w-full container px-4 md:px-6 animate-in fade-in-0 slide-in-from-bottom-8 duration-700 ease-out" style={{ animationDelay: '400ms' }}>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {!isDailyContentLoaded ? (
-          <>
-            <Card className="shadow-lg rounded-lg flex flex-col p-4"><Skeleton className="h-32 w-full" /></Card>
-            <Card className="shadow-lg rounded-lg flex flex-col p-4"><Skeleton className="h-32 w-full" /></Card>
-          </>
-        ) : (
-          <>
-            {lawOfTheDay && (
-              <Card className="shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 hover:-rotate-y-1 rounded-lg flex flex-col">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-3 text-lg sm:text-xl font-headline text-primary">
-                      <Scale className="w-7 h-7" />
+  const firstName = user?.displayName?.split(" ")[0] || user?.email?.split("@")[0];
+
+  return (
+    <div className="flex flex-col items-center space-y-10 md:space-y-14">
+      {/* ── Hero Section ──────────────────────────────────────────────── */}
+      <section className="relative w-full py-14 sm:py-16 md:py-20 bg-gradient-to-br from-primary/10 via-background to-accent/10 rounded-xl shadow-lg text-center animate-in fade-in-0 slide-in-from-top-12 duration-700 ease-out overflow-hidden">
+        <ShieldCheck className="absolute -top-5 -left-5 h-24 w-24 text-primary/10 animate-float-up-down opacity-70" style={{ animationDuration: "5s" }} />
+        <Sparkles className="absolute -bottom-6 -right-6 h-28 w-28 text-accent/10 animate-float-left-right opacity-60" style={{ animationDuration: "6s" }} />
+
+        <div className="container px-4 md:px-6 relative z-10">
+          {isLoggedIn ? (
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-headline font-bold text-primary">
+              Vanakkam, {firstName}! 👋
+            </h1>
+          ) : (
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-headline font-bold text-primary">
+              India's Cyber Law <span className="text-accent">AI Assistant</span>
+            </h1>
+          )}
+          <p className="mt-4 text-md sm:text-lg text-foreground/80 max-w-2xl mx-auto">
+            {isLoggedIn
+              ? "Welcome back to CyberMozhi. Continue your journey to digital safety and legal awareness."
+              : "Bilingual (Tamil & English) guidance on cyber law, online threats, and your legal rights — powered by AI."}
+          </p>
+
+          <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+            <Button asChild size="lg" className="shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105">
+              <Link href="/chat">
+                Open Chatbot <MessageCircle className="ml-2 h-5 w-5" />
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105">
+              <Link href="/scam-checker">
+                Check a Scam <ScanSearch className="ml-2 h-5 w-5" />
+              </Link>
+            </Button>
+          </div>
+
+          {/* Stat cards */}
+          <div className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl mx-auto">
+            {[
+              { value: "43+", label: "Laws" },
+              { value: "100+", label: "Terms" },
+              { value: "36", label: "Cyber Cells" },
+              { value: "24/7", label: "AI" },
+            ].map((stat) => (
+              <div key={stat.label} className="bg-card/70 backdrop-blur rounded-xl py-3 px-2 border border-border/60">
+                <p className="text-xl sm:text-2xl font-bold text-primary font-headline">{stat.value}</p>
+                <p className="text-xs text-muted-foreground">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Emergency Contacts Bar ────────────────────────────────────── */}
+      <section className="w-full container px-4 md:px-6 -mt-4 md:-mt-8">
+        <div className="bg-destructive/10 border border-destructive/30 rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2 justify-center">
+          <div className="flex items-center gap-2 text-destructive font-semibold text-sm shrink-0">
+            <PhoneCall className="h-4 w-4" /> Emergency Helplines:
+          </div>
+          {EMERGENCY_CONTACTS.map((c) => (
+            <a
+              key={c.number}
+              href={`tel:${c.number}`}
+              className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-destructive transition-colors"
+            >
+              <span className="font-bold text-destructive">{c.number}</span>
+              <span className="text-muted-foreground">{c.label}</span>
+            </a>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Feature Access Cards ──────────────────────────────────────── */}
+      <section className="w-full container px-4 md:px-6 animate-in fade-in-0 slide-in-from-bottom-8 duration-700 ease-out">
+        <h2 className="text-2xl sm:text-3xl font-headline font-bold tracking-tight text-center text-primary mb-8">
+          Everything You Need
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {featureCards.map((feature, index) => (
+            <Link
+              href={feature.link}
+              key={feature.title}
+              className="group"
+            >
+              <Card
+                className="h-full flex flex-col shadow-md hover:shadow-xl transition-all duration-300 ease-out transform hover:-translate-y-1 rounded-xl overflow-hidden animate-in fade-in-0 slide-in-from-bottom-4 duration-500 ease-out"
+                style={{ animationDelay: `${index * 80}ms` }}
+              >
+                <CardContent className="p-6 flex flex-col flex-grow">
+                  <div className="h-11 w-11 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                    <feature.icon className="w-6 h-6 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-headline font-semibold text-foreground mb-1.5">
+                    {feature.title}
+                  </h3>
+                  <p className="text-sm text-foreground/70 leading-relaxed flex-grow">
+                    {feature.description}
+                  </p>
+                  <div className="mt-4 flex items-center text-sm font-medium text-primary opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all duration-300">
+                    Open <ArrowRight className="ml-1.5 h-4 w-4" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Today's Learning — 3 column ───────────────────────────────── */}
+      <section className="w-full container px-4 md:px-6 animate-in fade-in-0 slide-in-from-bottom-8 duration-700 ease-out">
+        <h2 className="text-2xl sm:text-3xl font-headline font-bold tracking-tight text-center text-primary mb-8">
+          Today's Learning
+        </h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
+          {!isDailyContentLoaded ? (
+            <>
+              <Card className="shadow-md rounded-xl p-4"><Skeleton className="h-40 w-full" /></Card>
+              <Card className="shadow-md rounded-xl p-4"><Skeleton className="h-40 w-full" /></Card>
+              <Card className="shadow-md rounded-xl p-4"><Skeleton className="h-40 w-full" /></Card>
+            </>
+          ) : (
+            <>
+              {lawOfTheDay && (
+                <Card className="shadow-md hover:shadow-lg transition-all duration-300 rounded-xl flex flex-col">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2.5 text-base font-headline text-primary">
+                      <Scale className="w-5 h-5" />
                       Law of the Day
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="flex-grow">
-                    <h3 className="font-semibold text-foreground">{lawOfTheDay.title}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">{lawOfTheDay.act} - {lawOfTheDay.section}</p>
-                    <p className="text-sm text-foreground/80 mt-2 line-clamp-3">{lawOfTheDay.summary}</p>
-                  </CardContent>
-                  <div className="p-4 pt-0">
-                    <Button asChild variant="link" className="text-primary p-0 h-auto hover:text-accent text-sm">
+                  <CardContent className="flex-grow flex flex-col">
+                    <h3 className="font-semibold text-foreground text-sm">{lawOfTheDay.title}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{lawOfTheDay.act} · {lawOfTheDay.section}</p>
+                    <p className="text-xs text-foreground/80 mt-2 line-clamp-3 flex-grow">{lawOfTheDay.summary}</p>
+                    <Button asChild variant="link" className="text-primary p-0 h-auto hover:text-accent text-xs mt-3 justify-start">
                       <Link href={`/law-summaries#${lawOfTheDay.id}`}>
-                        Read Full Summary <ArrowRight className="ml-1 h-4 w-4" />
+                        Read Full Summary <ArrowRight className="ml-1 h-3.5 w-3.5" />
                       </Link>
                     </Button>
-                  </div>
+                  </CardContent>
                 </Card>
-            )}
-            {termOfTheDay && (
-              <Card className="shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 hover:rotate-y-1 rounded-lg flex flex-col">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-3 text-lg sm:text-xl font-headline text-accent">
-                      <BrainCircuit className="w-7 h-7" />
+              )}
+              {termOfTheDay && (
+                <Card className="shadow-md hover:shadow-lg transition-all duration-300 rounded-xl flex flex-col">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2.5 text-base font-headline text-accent">
+                      <BrainCircuit className="w-5 h-5" />
                       Term of the Day
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="flex-grow">
-                    <h3 className="font-semibold text-foreground">{termOfTheDay.term}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">{termOfTheDay.category}</p>
-                    <p className="text-sm text-foreground/80 mt-2 line-clamp-3">{termOfTheDay.definition.split(' Example: ')[0]}</p>
-                  </CardContent>
-                  <div className="p-4 pt-0">
-                    <Button asChild variant="link" className="text-accent p-0 h-auto hover:text-primary text-sm">
+                  <CardContent className="flex-grow flex flex-col">
+                    <h3 className="font-semibold text-foreground text-sm">{termOfTheDay.term}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{termOfTheDay.category}</p>
+                    <p className="text-xs text-foreground/80 mt-2 line-clamp-3 flex-grow">{termOfTheDay.definition.split(" Example: ")[0]}</p>
+                    <Button asChild variant="link" className="text-accent p-0 h-auto hover:text-primary text-xs mt-3 justify-start">
                       <Link href={`/glossary#${termOfTheDay.id}`}>
-                        Learn More <ArrowRight className="ml-1 h-4 w-4" />
+                        Learn More <ArrowRight className="ml-1 h-3.5 w-3.5" />
                       </Link>
                     </Button>
-                  </div>
-                </Card>
-            )}
-          </>
-        )}
-      </div>
-    </section>
-  );
-
-  // Guest User View
-  if (!isLoggedIn) {
-    return (
-      <div className="flex flex-col items-center space-y-12 md:space-y-16">
-        {/* Hero Section for Guests */}
-        <section className="relative w-full py-16 sm:py-20 md:py-24 lg:py-28 bg-gradient-to-br from-primary/10 via-background to-accent/10 rounded-xl shadow-lg text-center animate-in fade-in-0 slide-in-from-top-12 duration-700 ease-out overflow-hidden">
-          
-          <ShieldCheck className="absolute -top-5 -left-5 h-24 w-24 text-primary/10 animate-float-up-down opacity-70" style={{ animationDuration: '5s', animationDelay: '0.2s' }} />
-          <NetworkIcon className="absolute -bottom-8 -right-8 h-32 w-32 text-accent/10 animate-float-left-right opacity-60" style={{ animationDuration: '6s', animationDelay: '0.5s' }} />
-
-          <div className="container px-4 md:px-6 relative z-10">
-            <Sparkles className="w-16 h-16 md:w-20 md:h-20 text-primary mx-auto mb-6 animate-pulse delay-300" />
-            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl text-primary font-headline">
-              Welcome to CyberMozhi! வணக்கம்!
-            </h1>
-            <p className="mt-4 text-md sm:text-lg md:text-xl text-foreground/80 max-w-3xl mx-auto">
-              Your AI-powered bilingual (Tamil & English) assistant for understanding Indian cyber laws, online threats, cybersecurity best practices, and legal remedies.
-            </p>
-            <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-              <Button asChild size="lg" className="shadow-md hover:shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 ease-out" style={{ animationDelay: '200ms' }}>
-                <Link href="/chat">
-                  Try AI Chatbot (Limited Access) <MessageCircle className="ml-2 h-5 w-5" />
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="lg" className="shadow-md hover:shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 ease-out" style={{ animationDelay: '300ms' }}>
-                <Link href="/law-summaries">
-                  Explore Cyber Laws <FileText className="ml-2 h-5 w-5" />
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </section>
-
-        {/* What You Can Learn Section */}
-        <OfTheDaySection />
-        
-        {/* Core Features Section for Guests */}
-        <section className="w-full py-12 md:py-16 bg-background animate-in fade-in-0 slide-in-from-bottom-8 duration-700 ease-out" style={{ animationDelay: '600ms' }}>
-          <div className="container px-4 md:px-6">
-            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl text-center text-primary mb-12 font-headline">
-              Explore Our Resources
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {coreFeatures.map((feature, index) => (
-                <Card
-                  key={feature.title}
-                  className="flex flex-col shadow-lg hover:shadow-xl transition-transform duration-300 ease-out transform hover:scale-105 hover:rotate-y-1 rounded-lg overflow-hidden animate-in fade-in-0 slide-in-from-bottom-4 duration-500 ease-out"
-                  style={{ animationDelay: `${index * 100 + 700}ms` }}
-                >
-                  <CardHeader className="bg-primary/5 p-6">
-                    <div className="flex items-center gap-4">
-                      <feature.icon className="w-10 h-10 text-primary" />
-                      <CardTitle className="text-xl font-headline text-primary">{feature.title}</CardTitle>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-6 flex-grow">
-                    <CardDescription className="text-foreground/70 leading-relaxed">
-                      {feature.description}
-                    </CardDescription>
                   </CardContent>
-                  <div className="p-6 pt-0 mt-auto">
-                    <Button asChild variant="link" className="text-primary p-0 h-auto hover:text-accent transition-colors duration-200">
-                      <Link href={feature.link}>
-                        {feature.linkText} <ArrowRight className="ml-2 h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </div>
                 </Card>
-              ))}
-            </div>
-          </div>
-        </section>
+              )}
+              <QuickQuizSection />
+            </>
+          )}
+        </div>
+      </section>
 
-        {/* Unlock Full Potential Section */}
-        <section className="w-full py-12 md:py-20 bg-accent/10 rounded-xl shadow-lg text-center animate-in fade-in-0 slide-in-from-bottom-8 duration-700 ease-out" style={{ animationDelay: '800ms' }}>
-          <div className="container px-4 md:px-6">
-            <LogIn className="w-12 h-12 text-accent mx-auto mb-6 animate-pulse delay-500" />
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-accent mb-4 font-headline">
-              Unlock CyberMozhi's Full Potential
+      {/* ── Guest CTA ──────────────────────────────────────────────────── */}
+      {!isLoggedIn && (
+        <section className="w-full container px-4 md:px-6">
+          <div className="bg-accent/10 rounded-xl shadow-lg text-center py-12 md:py-16 px-4">
+            <UserPlus className="w-12 h-12 text-accent mx-auto mb-5" />
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-accent mb-3 font-headline">
+              Unlock Full Access — It's Free
             </h2>
-            <p className="mt-4 max-w-2xl mx-auto text-md sm:text-lg text-foreground/80">
-              Create a free account or login to get personalized advice from our AI and an enhanced user experience.
+            <p className="max-w-xl mx-auto text-md text-foreground/80 mb-8">
+              Create a free account for personalized AI guidance, saved chats, and the complete CyberMozhi experience.
             </p>
-            <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-              <Button asChild size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-md hover:shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 ease-out" style={{ animationDelay: '900ms' }}>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button asChild size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105">
                 <Link href="/signup">
                   Create Free Account <UserPlus className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="lg" className="shadow-md hover:shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 border-accent text-accent hover:bg-accent/20 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 ease-out" style={{ animationDelay: '1000ms' }}>
+              <Button asChild variant="outline" size="lg" className="border-accent text-accent hover:bg-accent/20 shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105">
                 <Link href="/login">
-                  Login to Your Account <LogIn className="ml-2 h-5 w-5" />
+                  Login <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
             </div>
           </div>
         </section>
-      </div>
-    );
-  }
+      )}
 
-  // Logged-in User View
-  return (
-    <div className="flex flex-col items-center space-y-12">
-      {/* Personalized Greeting */}
-      <section className="w-full py-10 text-center bg-gradient-to-r from-primary/10 to-accent/10 rounded-xl shadow-md animate-in fade-in-0 slide-in-from-top-12 duration-700 ease-out">
-        <div className="container px-4 md:px-6">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-headline font-bold text-primary">
-            Vanakkam, {user?.displayName || user?.email?.split('@')[0]}!
-          </h1>
-          <p className="mt-3 text-md sm:text-lg text-foreground/80">
-            Welcome back to CyberMozhi. Let's continue your journey to digital safety and legal awareness.
-          </p>
-        </div>
-      </section>
-
-      {/* Of the Day section for logged-in users */}
-      <OfTheDaySection />
-
-      {/* Quick Access to Core Features */}
-      <section className="w-full container px-4 md:px-6 py-10 animate-in fade-in-0 slide-in-from-bottom-8 duration-700 ease-out" style={{ animationDelay: '200ms' }}>
-         <h2 className="text-2xl sm:text-3xl font-headline font-bold tracking-tight text-center text-primary mb-12">
-            Quick Access to Resources
-          </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {coreFeatures.map((feature, index) => (
-              <Card
-                key={feature.title}
-                className="flex flex-col shadow-lg hover:shadow-xl transition-transform duration-300 ease-out transform hover:scale-105 hover:rotate-y-1 rounded-lg overflow-hidden animate-in fade-in-0 slide-in-from-bottom-4 duration-500 ease-out"
-                style={{ animationDelay: `${index * 100 + 300}ms` }}
-              >
-                <CardHeader className="bg-primary/5 p-6">
-                  <div className="flex items-center gap-4">
-                    <feature.icon className="w-10 h-10 text-primary" />
-                    <CardTitle className="text-xl font-headline text-primary">{feature.title}</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-6 flex-grow">
-                  <CardDescription className="text-foreground/70 leading-relaxed">
-                    {feature.description}
-                  </CardDescription>
-                </CardContent>
-                <div className="p-6 pt-0 mt-auto">
-                  <Button asChild className="w-full transition-shadow hover:shadow-md">
-                    <Link href={feature.link}>
-                      {feature.linkText} <ArrowRight className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
-      </section>
-
-
-      {/* Full AI Chatbot Access Section */}
-      <section className="w-full py-12 md:py-16 bg-accent/10 rounded-xl shadow-lg animate-in fade-in-0 slide-in-from-bottom-8 duration-700 ease-out" style={{ animationDelay: '400ms' }}>
-        <div className="container px-4 md:px-6 text-center">
-          <MessageCircle className="w-12 h-12 text-accent mx-auto mb-6 animate-pulse delay-700" />
-          <h2 className="text-2xl sm:text-3xl font-headline font-bold tracking-tight text-accent">
-            Your AI Legal & Cyber Guide Awaits
-          </h2>
-          <p className="mt-4 max-w-2xl mx-auto text-md sm:text-lg text-foreground/80">
-            Leverage the full power of CyberMozhi's bilingual AI. Get detailed explanations on cyber laws, IT Act sections, penalties, attack mitigation, and guidance on filing complaints.
-          </p>
-          <div className="mt-8">
-            <Button asChild size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-md hover:shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105">
-              <Link href="/chat">
-                Chat with CyberMozhi AI <Sparkles className="ml-2 h-5 w-5" />
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* Slogan */}
-      <footer className="py-10 text-center animate-in fade-in-0 duration-700 ease-out" style={{ animationDelay: '500ms' }}>
-        <p className="text-lg sm:text-xl font-semibold text-primary">CyberMozhi: Speak Law. Speak Secure. Speak Smart. 💬⚖️🌐</p>
+      {/* ── Slogan Footer ──────────────────────────────────────────────── */}
+      <footer className="py-6 text-center">
+        <p className="text-lg sm:text-xl font-semibold text-primary">
+          CyberMozhi: Speak Law. Speak Secure. Speak Smart. 💬⚖️🌐
+        </p>
       </footer>
     </div>
   );
