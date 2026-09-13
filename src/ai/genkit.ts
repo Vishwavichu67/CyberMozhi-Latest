@@ -19,6 +19,18 @@ export class RateLimitError extends Error {
   }
 }
 
+/**
+ * Thrown when Groq responds with 413 (request too large — exceeds TPM budget).
+ * This happens when the prompt (system + RAG context + history + query)
+ * exceeds Groq's per-request token ceiling for the free tier.
+ */
+export class PayloadTooLargeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PayloadTooLargeError';
+  }
+}
+
 function parseRetryAfter(response: Response): number | undefined {
   const header = response.headers.get('retry-after');
   if (!header) return undefined;
@@ -60,6 +72,10 @@ export async function callGroq(
       "CyberMozhi's AI is handling a lot of requests right now. Please try again in a moment.",
       parseRetryAfter(response)
     );
+  }
+
+  if (response.status === 413) {
+    throw new PayloadTooLargeError('Request too large for Groq token budget.');
   }
 
   if (!response.ok) {
@@ -108,6 +124,12 @@ export async function callGroqStream(
     throw new RateLimitError(
       "CyberMozhi's AI is handling a lot of requests right now. Please try again in a moment.",
       parseRetryAfter(response)
+    );
+  }
+
+  if (response.status === 413) {
+    throw new PayloadTooLargeError(
+      "This conversation has gotten quite long. Please start a new chat to continue — this keeps responses fast and reliable."
     );
   }
 

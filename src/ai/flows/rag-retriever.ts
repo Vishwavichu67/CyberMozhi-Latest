@@ -1048,19 +1048,87 @@ const GLOSSARY_DATA: GlossaryEntry[] = [
   }
 ];
 
-function scoreText(text: string, keywords: string[]): number {
+// ── Synonym clusters — maps everyday language to the legal/technical terms ──
+// used in the law and glossary data. A user's exact words rarely match a
+// statute's wording, so each cluster lets a lay phrase "pull in" the legal
+// terms that actually appear in LAW_DATA/GLOSSARY_DATA, and vice versa.
+const SYNONYM_CLUSTERS: string[][] = [
+  // Account compromise / identity
+  ['hacked', 'hack', 'hacking', 'compromised', 'unauthorized', 'access', 'breached', 'broke', 'intrusion'],
+  ['identity', 'impersonation', 'impersonate', 'fake', 'imposter', 'pretending', 'personation'],
+  ['password', 'credentials', 'login', 'account', 'otp'],
+  // Financial fraud
+  ['otp', 'upi', 'bank', 'money', 'payment', 'transaction', 'financial', 'fraud', 'scam', 'cheated', 'cheating', 'loss', 'lost'],
+  ['phishing', 'vishing', 'smishing', 'fraudulent', 'fake', 'link', 'sms', 'call', 'email'],
+  // Extortion / harassment / distress
+  ['sextortion', 'blackmail', 'blackmailing', 'extortion', 'threatening', 'threat', 'threatened', 'intimidation', 'intimidating'],
+  ['harassment', 'harassing', 'stalking', 'stalker', 'following', 'monitoring', 'unwanted'],
+  ['obscene', 'nude', 'intimate', 'private', 'photos', 'images', 'video', 'morphed', 'explicit'],
+  ['scared', 'afraid', 'help', 'distress', 'victim', 'worried', 'panic', 'urgent'],
+  // Social / platform
+  ['social', 'facebook', 'instagram', 'whatsapp', 'twitter', 'platform', 'profile', 'account'],
+  // Privacy / data
+  ['privacy', 'data', 'personal', 'breach', 'leaked', 'leak', 'exposed', 'dpdp'],
+  // Reporting / process
+  ['report', 'complaint', 'fir', 'police', 'file', 'cybercell', 'helpline'],
+  // Child safety
+  ['child', 'minor', 'children', 'kid', 'underage', 'pornography'],
+  // Cyber terrorism / critical infra
+  ['terrorism', 'terrorist', 'infrastructure', 'critical', 'sabotage'],
+];
+
+// Build a lookup: word → all other words in its cluster(s)
+const SYNONYM_MAP: Map<string, Set<string>> = (() => {
+  const map = new Map<string, Set<string>>();
+  for (const cluster of SYNONYM_CLUSTERS) {
+    for (const word of cluster) {
+      const set = map.get(word) ?? new Set<string>();
+      for (const other of cluster) if (other !== word) set.add(other);
+      map.set(word, set);
+    }
+  }
+  return map;
+})();
+
+/**
+ * Expands a keyword list with related terms from SYNONYM_MAP.
+ * Returns both the original keywords (full weight) and expanded
+ * synonyms (partial weight) so a lay query like "someone hacked my
+ * insta and is blackmailing me" also surfaces Section 66C, 66E, 354D,
+ * and sextortion-related glossary terms — not just literal word matches.
+ */
+function expandKeywords(keywords: string[]): { primary: string[]; secondary: string[] } {
+  const primary = [...new Set(keywords)];
+  const secondary = new Set<string>();
+  for (const kw of primary) {
+    const related = SYNONYM_MAP.get(kw);
+    if (related) {
+      for (const r of related) {
+        if (!primary.includes(r)) secondary.add(r);
+      }
+    }
+  }
+  return { primary, secondary: [...secondary] };
+}
+
+function scoreText(text: string, primary: string[], secondary: string[]): number {
   const lower = text.toLowerCase();
-  return keywords.reduce((score, kw) => {
-    const count = (lower.split(kw).length - 1);
-    return score + count;
+  const primaryScore = primary.reduce((score, kw) => {
+    const count = lower.split(kw).length - 1;
+    return score + count * 3; // exact/primary matches weighted higher
   }, 0);
+  const secondaryScore = secondary.reduce((score, kw) => {
+    const count = lower.split(kw).length - 1;
+    return score + count; // synonym matches weighted lower — a supporting signal, not a substitute
+  }, 0);
+  return primaryScore + secondaryScore;
 }
 
 function extractKeywords(query: string): string[] {
   const stopWords = new Set([
     'what','is','are','the','a','an','how','do','does','i','my','me','we','you',
     'it','in','on','at','to','for','of','and','or','can','will','about','explain',
-    'tell','please','help','section','act','under','law',
+    'tell','please','help','section','act','under','law','file','get','got','with',
   ]);
   return query
     .toLowerCase()
@@ -1069,16 +1137,18 @@ function extractKeywords(query: string): string[] {
     .filter((w: string) => w.length > 2 && !stopWords.has(w));
 }
 
-export function retrieveRelevantChunks(query: string, topK = 5): RetrievedChunk[] {
+export function retrieveRelevantChunks(query: string, topK = 6): RetrievedChunk[] {
   const keywords = extractKeywords(query);
   if (keywords.length === 0) return [];
+
+  const { primary, secondary } = expandKeywords(keywords);
 
   const scored: Array<{ chunk: RetrievedChunk; score: number }> = [];
 
   for (const law of LAW_DATA) {
     const text = [law.title, law.section, law.act, law.summary, law.details, law.category]
       .join(' ').toLowerCase();
-    const score = scoreText(text, keywords);
+    const score = scoreText(text, primary, secondary);
     if (score > 0) {
       scored.push({
         score,
@@ -1096,7 +1166,7 @@ export function retrieveRelevantChunks(query: string, topK = 5): RetrievedChunk[
 
   for (const term of GLOSSARY_DATA) {
     const text = [term.term, term.definition, term.category].join(' ').toLowerCase();
-    const score = scoreText(text, keywords);
+    const score = scoreText(text, primary, secondary);
     if (score > 0) {
       scored.push({
         score,
@@ -1109,7 +1179,14 @@ export function retrieveRelevantChunks(query: string, topK = 5): RetrievedChunk[
     }
   }
 
+  // Filter out weak noise: a single lone synonym hit (score 1) is too
+  // unreliable to hand the model as "relevant knowledge" — require either
+  // one primary keyword match (score 3+) or at least two corroborating
+  // synonym hits (score 2+).
+  const MIN_SCORE = 2;
+
   return scored
+    .filter(s => s.score >= MIN_SCORE)
     .sort((a, b) => b.score - a.score)
     .slice(0, topK)
     .map(s => s.chunk);

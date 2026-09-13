@@ -10,10 +10,11 @@
  */
 
 import { NextRequest } from 'next/server';
-import { callGroqStream, RateLimitError } from '@/ai/genkit';
+import { callGroqStream, RateLimitError, PayloadTooLargeError } from '@/ai/genkit';
 import { buildCyberMozhiSystemPrompt, buildCyberMozhiUserPrompt } from '@/ai/flows/chatbot-prompts';
 import { retrieveRelevantChunks, formatChunksAsContext } from '@/ai/flows/rag-retriever';
 import { generateChatTitle } from '@/ai/flows/chat-title-generator';
+import { detectCrisisLevel, getCrisisNotice } from '@/ai/flows/crisis-detector';
 import { admin, db } from '@/lib/firebase-admin';
 
 const { Timestamp } = admin.firestore;
@@ -156,15 +157,49 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // ── Step 0: Crisis detection — CODE-ENFORCED, runs before anything else ──
+    // Does not depend on the model's behavior. If detected, a guaranteed
+    // safety notice is sent to the client as its own event, before any
+    // AI tokens begin.
+    const crisisLevel = detectCrisisLevel(query);
+    const crisisNotice = getCrisisNotice(crisisLevel, tamilFirst === true);
+
     // ── Step 1: RAG — instant, in-memory ────────────────────────────────────
     const relevantChunks = retrieveRelevantChunks(query, 5);
     const ragContext = formatChunksAsContext(relevantChunks);
 
-    const historyText = (chatHistory || [])
-      .slice(-10)
-      .map((m: { role: string; parts: { text: string }[] }) =>
-        `${m.role === 'user' ? 'User' : 'CyberMozhi'}: ${m.parts.map(p => p.text).join(' ')}`
-      ).join('\n');
+    // ── History — capped by CHARACTER BUDGET, not just message count ────────
+    // Bug fix: the old code only sliced to the last 10 messages, with no
+    // limit on each message's length. CyberMozhi's own responses are often
+    // long (bilingual Tamil + English, sometimes a full document draft),
+    // so a handful of prior turns could alone exceed Groq's 8,000 TPM cap
+    // — this is what caused "Groq stream error 413: Request too large."
+    // Fix: truncate each message to a max length, AND cap total history
+    // to a fixed character budget, trimming oldest-first if still too long.
+    const MAX_CHARS_PER_MESSAGE = 400;   // ~100 tokens per turn, enough for context without the full document draft
+    const MAX_HISTORY_CHARS = 2400;      // ~600 tokens total for history — leaves headroom for system prompt + RAG + query
+
+    function truncate(text: string, maxLen: number): string {
+      if (text.length <= maxLen) return text;
+      return text.slice(0, maxLen) + '…';
+    }
+
+    const recentMessages = (chatHistory || []).slice(-10) as { role: string; parts: { text: string }[] }[];
+
+    let historyBudget = MAX_HISTORY_CHARS;
+    const historyLines: string[] = [];
+    // Walk from most recent backwards so we keep the freshest context
+    // if the budget runs out before reaching the oldest messages.
+    for (let i = recentMessages.length - 1; i >= 0; i--) {
+      const m = recentMessages[i];
+      const rawText = m.parts.map(p => p.text).join(' ');
+      const truncated = truncate(rawText, MAX_CHARS_PER_MESSAGE);
+      const line = `${m.role === 'user' ? 'User' : 'CyberMozhi'}: ${truncated}`;
+      if (line.length > historyBudget) break;
+      historyLines.unshift(line);
+      historyBudget -= line.length;
+    }
+    const historyText = historyLines.join('\n');
 
     const systemPrompt = buildCyberMozhiSystemPrompt(tamilFirst === true);
     const userPrompt = buildCyberMozhiUserPrompt(
@@ -201,6 +236,18 @@ export async function POST(req: NextRequest) {
 
     const readable = new ReadableStream({
       async start(controller) {
+        // ── Guaranteed safety notice — sent first, independent of the model ──
+        if (crisisNotice) {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({
+              type: 'safety',
+              level: crisisNotice.level,
+              title: crisisNotice.title,
+              message: crisisNotice.message,
+            })}\n\n`)
+          );
+        }
+
         const reader = groqStream.getReader();
         let buf = '';
 
@@ -289,6 +336,13 @@ export async function POST(req: NextRequest) {
             ...(e.retryAfterSeconds ? { 'Retry-After': String(e.retryAfterSeconds) } : {}),
           },
         }
+      );
+    }
+
+    if (e instanceof PayloadTooLargeError) {
+      return new Response(
+        JSON.stringify({ error: e.message, type: 'payload_too_large' }),
+        { status: 413, headers: { 'Content-Type': 'application/json' } }
       );
     }
 

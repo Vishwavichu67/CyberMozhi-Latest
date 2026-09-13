@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Rocket, MessageCircle, FileText, BookOpen, ShieldCheck, Users, AlertTriangle, LifeBuoy, LogIn, UserCircle, Linkedin, Github, Instagram, Mail, SquareArrowOutUpRight } from "lucide-react";
@@ -14,52 +13,81 @@ const guideSections = [
   {
     icon: MessageCircle,
     title: "AI Chatbot Assistant",
-    content: "Our AI Chatbot is your go-to resource for quick answers on Indian cyber laws and cybersecurity. Ask questions in English or Tamil. For example, you can ask 'What is phishing in Tamil?' or 'Explain Section 66A of IT Act'. The chatbot will provide explanations in simple terms and offer mitigation techniques where applicable.",
+    content: "Ask CyberMozhi anything about Indian cyber law, online scams, or digital safety. Every answer streams in live and covers both English and Tamil — toggle which language appears first using the language switch above the chat box. If your question involves a police complaint, FIR, or takedown notice, the assistant can draft one for you inside the chat, ready to review and export.",
     tips: [
-      "Be specific with your questions for more accurate answers.",
-      "If the answer isn't clear, try rephrasing your query.",
-      "Use it to understand complex legal or technical jargon mentioned elsewhere on the site.",
+      "Toggle Tamil-first mode if you'd rather read Tamil before English in every response.",
+      "Tap the microphone icon to ask your question by voice instead of typing.",
+      "After each answer, tap one of the suggested follow-up questions to go deeper without retyping.",
+      "You'll need to be logged in to use the chatbot — this keeps your chat history saved and private to your account.",
+    ]
+  },
+  {
+    icon: FileText,
+    title: "Document Drafting & Save as PDF",
+    content: "When you ask the chatbot to help with an FIR, police complaint, or legal notice, it generates a complete draft directly in the chat. Look for the 'Save as PDF' button on that message — it opens a print-ready version in a new tab and triggers your browser's print dialog automatically, so you just choose 'Save as PDF' as the destination.",
+    tips: [
+      "Always fill in any [bracketed] placeholders in the draft before submitting it anywhere.",
+      "Treat every draft as a starting point — have it reviewed by a professional before filing.",
+      "If the print dialog doesn't open automatically, allow pop-ups for this site and try again.",
+    ]
+  },
+  {
+    icon: ShieldCheck,
+    title: "Scam Checker",
+    content: "Paste a suspicious message, email, or link into the Scam Checker and get an instant AI analysis of whether it looks like a scam, what red flags it contains, and what to do next.",
+    tips: [
+      "Paste the full message text for the most accurate analysis — partial snippets give partial answers.",
+      "Use it before clicking any link or sharing any OTP you weren't expecting.",
+      "If it's confirmed as fraud, report it immediately at cybercrime.gov.in or call 1930.",
     ]
   },
   {
     icon: FileText,
     title: "Indian Cyber Law Summaries",
-    content: "The Law Summaries page provides concise overviews of key sections from the Indian IT Act 2000, relevant Indian Penal Code (IPC) sections, and other important digital laws and policies. Each summary explains the law, its implications, and potential penalties.",
+    content: "Browse plain-language summaries of key sections from the IT Act 2000, relevant IPC sections, and the Digital Personal Data Protection Act 2023. Each entry explains what the law covers, its real-world implications, and applicable penalties.",
     tips: [
-      "Browse by category (e.g., IT Act, Data Protection) to find relevant laws.",
-      "Use the 'Read More Details' accordion for in-depth information on each law.",
-      "These summaries are for educational purposes and are not a substitute for formal legal advice.",
+      "Browse by category to find laws relevant to your situation.",
+      "These summaries are for educational purposes only, not a substitute for formal legal advice.",
+      "If the chatbot cites a law by section number, look it up here for the full picture.",
     ]
   },
   {
     icon: BookOpen,
     title: "Cybersecurity Glossary",
-    content: "Navigate the digital world with confidence using our comprehensive Cybersecurity Glossary. It defines common and complex cybersecurity and cyber law terms in simple language. Each term is categorized for easy browsing.",
+    content: "A growing glossary of cybersecurity and cyber-law terms explained in simple language, organized by category for easy browsing.",
     tips: [
-      "Use the search bar to quickly find specific terms.",
-      "Filter terms by category (Cyber Attacks, Security Concepts, etc.) for focused learning.",
-      "Familiarize yourself with these terms to enhance your digital literacy and understanding of cybersecurity discussions.",
+      "Use this whenever the chatbot or a law summary uses a term you don't recognize.",
+      "Browsing by category is a good way to build broader digital-safety awareness.",
+    ]
+  },
+  {
+    icon: Users,
+    title: "Cyber Crime Cell Locator",
+    content: "Find contact details for cyber crime cells across India's states and union territories, sourced from official government listings — useful when you need to report an incident in person or by phone.",
+    tips: [
+      "Search by your state or union territory to find the nearest cell.",
+      "Keep the national helpline (1930) handy as your first call in an active fraud situation.",
     ]
   },
   {
     icon: LogIn,
-    title: "User Accounts",
-    content: "Creating a user account by logging in (registration functionality will be added in the future) helps in providing a pathway for more personalized experiences. Currently, logging in allows for chat history persistence and is the first step towards future features like saving FIR drafts or custom preferences.",
+    title: "Accounts & Chat History",
+    content: "Create a free account to unlock the AI chatbot and have your conversations saved automatically, so you can pick up where you left off. Guest visitors can browse law summaries, the glossary, cyber cell listings, and the scam checker without logging in.",
     tips: [
-      "Use the 'Login' button in the header to access your account.",
-      "Keep your account credentials secure and do not share them.",
-      "Logout when you are finished, especially on shared devices.",
+      "Use 'Sign Up' in the header to create a free account, or 'Login' if you already have one.",
+      "Your past chat sessions are listed in the sidebar once you're logged in.",
+      "Keep your account credentials secure and log out on shared devices.",
     ]
   },
   {
     icon: LifeBuoy,
     title: "General Tips for Effective Use",
-    content: "CyberMozhi is designed to be an empowering resource. Here’s how to make the most of it:",
+    content: "CyberMozhi is designed to be an empowering resource. Here's how to make the most of it:",
     tips: [
-      "Start with the area most relevant to your immediate needs (e.g., chatbot for quick questions, summaries for detailed law info, glossary for definitions).",
-      "Cross-reference information: if the chatbot mentions a specific law, look it up in the Law Summaries. If you encounter an unfamiliar term, check the Glossary.",
-      "Share this resource with friends and family to help them stay informed about cyber laws and security.",
-      "The platform is continuously evolving. Check back for new features and updated content.",
+      "In an active emergency (ongoing fraud, threats, harassment), call 1930 first — the chatbot is for guidance, not emergency response.",
+      "Start with the tool most relevant to your need: chatbot for guidance, scam checker for a suspicious message, law summaries for legal detail, glossary for terminology.",
+      "Cross-reference: if the chatbot mentions a law, look it up in Law Summaries; if it uses an unfamiliar term, check the Glossary.",
+      "The platform is actively evolving — check back for new features and expanded content.",
     ]
   },
 ];
@@ -171,5 +199,3 @@ export default function GuidePage() {
     </div>
   );
 }
-
-    
