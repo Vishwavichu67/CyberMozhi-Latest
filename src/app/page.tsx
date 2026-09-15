@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -420,6 +419,26 @@ export default function HomePage() {
         />
 
         <div className="container px-4 md:px-6 relative z-10">
+          {/* ── Logged-in welcome badge ──────────────────────────────── */}
+          {isLoggedIn && (
+            <div className="inline-flex items-center gap-2.5 mb-5 pl-2 pr-4 py-1.5 rounded-full bg-gradient-to-r from-primary/15 via-accent/15 to-primary/15 border border-primary/30 shadow-sm backdrop-blur animate-in fade-in-0 zoom-in-95 duration-500">
+              <span className="relative flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-bold text-primary-foreground shadow-inner">
+                {firstName?.[0]?.toUpperCase()}
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500 border border-background" />
+                </span>
+              </span>
+
+              <span className="text-sm font-medium text-foreground/90">
+                Welcome back,{" "}
+                <span className="font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent animate-gradient-x">
+                  {firstName}
+                </span>
+              </span>
+            </div>
+          )}
+
           {/* ── SEO-optimized H1 ──────────────────────────────────────── */}
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-headline font-bold text-primary">
             CyberMozhi: India's Cyber Law &amp; Digital Safety AI Assistant
@@ -427,7 +446,7 @@ export default function HomePage() {
 
           <p className="mt-4 text-md sm:text-lg text-foreground/80 max-w-2xl mx-auto">
             {isLoggedIn
-              ? `Welcome back, ${firstName}! Continue your journey to digital safety and legal awareness.`
+              ? "Continue your journey to digital safety and legal awareness."
               : "Bilingual Tamil & English guidance on Indian cyber law, online scams, and digital safety — powered by AI."}
           </p>
 

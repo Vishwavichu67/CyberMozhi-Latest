@@ -84,6 +84,20 @@
   .animate-float-left-right {
     animation: float-left-right 3.5s infinite ease-in-out;
   }
+  .animate-gradient-x {
+    background-size: 200% auto;
+    animation: gradient-x 4s ease infinite;
+  }
+}
+
+@keyframes gradient-x {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
 }
 
 @keyframes logo-pulse {

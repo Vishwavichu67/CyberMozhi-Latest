@@ -1,4 +1,3 @@
-
 import type { Metadata } from 'next';
 import './globals.css';
 import { Inter } from 'next/font/google';
@@ -83,7 +82,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning className={inter.variable}>
       <body
         suppressHydrationWarning
-        className={`${inter.variable} h-screen overflow-hidden bg-background font-body antialiased`}
+        className={`${inter.variable} h-screen overflow-hidden bg-background font-body antialiased flex flex-col`}
       >
         <ClientLayout>{children}</ClientLayout>
       </body>
