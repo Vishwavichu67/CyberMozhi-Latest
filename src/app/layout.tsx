@@ -1,14 +1,8 @@
-'use client';
 
+import type { Metadata } from 'next';
 import './globals.css';
-import { Header } from '@/components/layout/Header';
-import { Footer } from '@/components/layout/Footer';
-import { Toaster } from '@/components/ui/toaster';
-import { AuthProvider } from '@/contexts/AuthContext';
-import { ThemeProvider } from '@/components/layout/ThemeProvider';
-import { usePathname } from 'next/navigation';
-import { cn } from '@/lib/utils';
 import { Inter } from 'next/font/google';
+import ClientLayout from './ClientLayout';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -16,60 +10,82 @@ const inter = Inter({
   variable: '--font-inter',
 });
 
+export const metadata: Metadata = {
+  metadataBase: new URL('https://cybermozhi.in'),
+
+  title: {
+    default: 'CyberMozhi – Indian Cyber Law & Digital Safety AI Assistant',
+    template: '%s | CyberMozhi',
+  },
+
+  description:
+    'CyberMozhi is a bilingual AI assistant for Indian cyber law, online scams, digital safety, and cybersecurity. Get cyber law guidance in English and Tamil.',
+
+  keywords: [
+    'CyberMozhi',
+    'Indian cyber law',
+    'cyber law AI assistant',
+    'online scam checker',
+    'cybersecurity India',
+    'Tamil cyber law',
+    'digital safety',
+  ],
+
+  authors: [{ name: 'CyberMozhi' }],
+  creator: 'CyberMozhi',
+  publisher: 'CyberMozhi',
+
+  alternates: {
+    canonical: '/',
+  },
+
+  icons: {
+    icon: '/favicon.png',
+  },
+
+  openGraph: {
+    type: 'website',
+    url: 'https://cybermozhi.in/',
+    siteName: 'CyberMozhi',
+    title: 'CyberMozhi – Indian Cyber Law & Digital Safety AI Assistant',
+    description:
+      'Explore Indian cyber law, online scam awareness, and digital safety with CyberMozhi, your bilingual AI assistant.',
+    images: [
+      {
+        url: '/favicon.png',
+        width: 512,
+        height: 512,
+        alt: 'CyberMozhi logo',
+      },
+    ],
+  },
+
+  twitter: {
+    card: 'summary',
+    title: 'CyberMozhi – Indian Cyber Law & Digital Safety AI Assistant',
+    description:
+      'Bilingual AI assistance for Indian cyber law, online scams, and digital safety.',
+    images: ['/favicon.png'],
+  },
+
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const pathname = usePathname();
-  const isChatPage = pathname === '/chat';
-
   return (
-    <html lang="en" suppressHydrationWarning className={cn(inter.variable)}>
-      <head>
-        <title>CyberMozhi</title>
-        <meta name="description" content="Your one-stop cybersecurity knowledge center and virtual legal advisor for Indian netizens." />
-        <link rel="icon" href="/favicon.png" />
-      </head>
-      {/*
-        KEY FIXES vs original:
-        1. body always has h-screen overflow-hidden (not conditional) so
-           flex children can use h-full reliably on all screen sizes
-        2. main uses flex-1 min-h-0 instead of flex-grow (min-h-0 allows
-           flex children to shrink — without it, footer gets pushed off screen)
-        3. Removed items-center from main on chat page (it breaks full-width layout)
-      */}
+    <html lang="en" suppressHydrationWarning className={inter.variable}>
       <body
         suppressHydrationWarning
-        className={cn(
-          'h-screen overflow-hidden bg-background font-body antialiased flex flex-col',
-          inter.variable
-        )}
+        className={`${inter.variable} h-screen overflow-hidden bg-background font-body antialiased`}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <AuthProvider>
-            <Header />
-            <main className={cn(
-              'flex-1 min-h-0 w-full flex flex-col',
-              isChatPage
-                ? 'overflow-hidden'
-                : 'items-center overflow-y-auto'
-            )}>
-              {isChatPage ? children : (
-                <div className="container mx-auto px-4 py-8 w-full">
-                  {children}
-                </div>
-              )}
-            </main>
-            {!isChatPage && <Footer />}
-            <Toaster />
-          </AuthProvider>
-        </ThemeProvider>
+        <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
   );
