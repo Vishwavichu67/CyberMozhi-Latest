@@ -1,1 +1,0 @@
-self.__REACT_LOADABLE_MANIFEST="{\"components/chatbot/ChatInterface.tsx -> @/lib/firebase\":{\"id\":\"components/chatbot/ChatInterface.tsx -> @/lib/firebase\",\"files\":[]},\"components/chatbot/ChatInterface.tsx -> firebase/firestore\":{\"id\":\"components/chatbot/ChatInterface.tsx -> firebase/firestore\",\"files\":[]}}"
